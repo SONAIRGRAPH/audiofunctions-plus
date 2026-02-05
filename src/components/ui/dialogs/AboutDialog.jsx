@@ -115,7 +115,7 @@ const AboutDialog = ({ isOpen, onClose }) => {
 
                     {/* GitHub Button */}
                     <button
-                      onClick={() => handleExternalLink('https://github.com/m2rash/audiofunctions-plus', 'GitHub repository')}
+                      onClick={() => handleExternalLink('https://github.com/SONAIRGRAPH/audiofunctions-plus', 'GitHub repository')}
                       className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-md transition-colors"
                       aria-label="View source code on GitHub"
                     >

@@ -35,7 +35,7 @@ const WelcomeDialog = ({ isOpen, onClose, isAutoOpened = false }) => {
             </p>
             <button
               onClick={() => {
-                window.open('https://m2rash.github.io/audiofunctions-plus/', '_blank');
+                window.open('https://sonairgraph.github.io/audiofunctions-plus/', '_blank');
               }}
               className="btn-primary flex items-center gap-2 justify-center"
               aria-label="Open complete user guide in new tab"
@@ -73,7 +73,7 @@ const WelcomeDialog = ({ isOpen, onClose, isAutoOpened = false }) => {
               <div className="mt-3">
                 <button
                   onClick={() => {
-                    window.open('https://m2rash.github.io/audiofunctions-plus/earcons.html', '_blank');
+                    window.open('https://sonairgraph.github.io/audiofunctions-plus/earcons.html', '_blank');
                   }}
                   className="btn-secondary flex items-center gap-2"
                   aria-label="Learn more about earcons and audio cues in new tab"
@@ -122,18 +122,18 @@ const WelcomeDialog = ({ isOpen, onClose, isAutoOpened = false }) => {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
-                  window.open('https://m2rash.github.io/audiofunctions-plus/', '_blank');
+                  window.open('https://sonairgraph.github.io/audiofunctions-plus/', '_blank');
                 }}
                 className="btn-primary flex items-center gap-2 justify-center"
                 aria-label="Open detailed program guide in new tab"
               >
                 <BookOpen className="w-4 h-4" />
-                Program Guide
+                View Complete Guide
               </button>
 
               <button
                 onClick={() => {
-                  window.open('https://m2rash.github.io/audiofunctions-plus/shortcuts.html', '_blank');
+                  window.open('https://sonairgraph.github.io/audiofunctions-plus/shortcuts.html', '_blank');
                 }}
                 className="btn-secondary flex items-center gap-2 justify-center"
                 aria-label="Open keyboard shortcuts reference in new tab"

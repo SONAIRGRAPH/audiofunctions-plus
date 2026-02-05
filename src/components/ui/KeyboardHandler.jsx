@@ -298,31 +298,29 @@ export default function KeyboardHandler() {
             const activeFunctions = getActiveFunctions(functionDefinitions);
             const step = event.shiftKey ? 5 : 1;
 
-            // TODO renable landmarkShortcuts
             // Handle shortcut for new landmark using utility function
-            // if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b' && !event.shiftKey && !event.altKey) {
-            //     event.preventDefault();
-            //     event.stopPropagation();
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b' && !event.shiftKey && !event.altKey) {
+                event.preventDefault();
+                event.stopPropagation();
 
-            //     addLandmarkAtCursorPosition(
-            //         functionDefinitions,
-            //         cursorCoords,
-            //         setFunctionDefinitions,
-            //         announce,
-            //         showInfoToast,
-            //         openDialog
-            //     );
-            //     return;
-            // }
+                addLandmarkAtCursorPosition(
+                    functionDefinitions,
+                    cursorCoords,
+                    setFunctionDefinitions,
+                    announce,
+                    showInfoToast,
+                    openDialog
+                );
+                return;
+            }
 
-            // TODO renable centerAtCursor shortcut
             // Handle Ctrl+Z for centering view at cursor
-            // if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !event.altKey) {
-            //     event.preventDefault();
-            //     event.stopPropagation();
-            //     centerAtCursor();
-            //     return;
-            // }
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !event.altKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                centerAtCursor();
+                return;
+            }
 
             // Handle landmark shortcuts - support both regular numbers and Czech keyboard
             if (event.ctrlKey && !event.altKey && !event.shiftKey) {

@@ -36,27 +36,26 @@ const AppContent = () => {
   const hasCheckedWelcome = useRef(false);
 
   // Check if this is the first visit and show welcome dialog
-  // TODO re-enable automatic welcome dialog
-  // useEffect(() => {
-  //   // Prevent double execution
-  //   if (hasCheckedWelcome.current) return;
-  //   hasCheckedWelcome.current = true;
+  useEffect(() => {
+    // Prevent double execution
+    if (hasCheckedWelcome.current) return;
+    hasCheckedWelcome.current = true;
 
-  //   let hasSeenWelcome = false;
-  //   try {
-  //     hasSeenWelcome = localStorage.getItem('audiofunctions-welcome-seen');
-  //   } catch (error) {
-  //     console.warn('localStorage not available:', error);
-  //     // If localStorage is disabled, assume first visit
-  //     hasSeenWelcome = false;
-  //   }
-  //   if (!hasSeenWelcome) {
-  //     // Small delay to ensure everything is loaded
-  //     setTimeout(() => {
-  //       openDialog('welcome', { isAutoOpened: true });
-  //     }, 1000);
-  //   }
-  // }, [openDialog]);
+    let hasSeenWelcome = false;
+    try {
+      hasSeenWelcome = localStorage.getItem('audiofunctions-welcome-seen');
+    } catch (error) {
+      console.warn('localStorage not available:', error);
+      // If localStorage is disabled, assume first visit
+      hasSeenWelcome = false;
+    }
+    if (!hasSeenWelcome) {
+      // Small delay to ensure everything is loaded
+      setTimeout(() => {
+        openDialog('welcome', { isAutoOpened: true });
+      }, 1000);
+    }
+  }, [openDialog]);
 
   return <KBarWrapper />;
 };

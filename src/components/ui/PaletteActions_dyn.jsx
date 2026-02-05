@@ -245,16 +245,15 @@ export const useDynamicKBarActions = () => {
     icon: <Ruler className="size-5 shrink-0 opacity-70" />,
   },
 
-  // TODO Re-enable center at cursor action
-  // {
-  //   id: "center-at-cursor",
-  //   name: "Center View at Cursor",
-  //   shortcut: ["ctrl+z"],
-  //   keywords: "center, cursor, view, middle, position, focus, centering, navigate, jump, move",
-  //   parent: "quick-options",
-  //   perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
-  //   icon: <Target className="size-5 shrink-0 opacity-70" />,
-  // },
+  {
+    id: "center-at-cursor",
+    name: "Center View at Cursor",
+    shortcut: ["ctrl+z"],
+    keywords: "center, cursor, view, middle, position, focus, centering, navigate, jump, move",
+    parent: "quick-options",
+    perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
+    icon: <Target className="size-5 shrink-0 opacity-70" />,
+  },
 
   {
     id: "zoom-in",
@@ -330,71 +329,70 @@ export const useDynamicKBarActions = () => {
     icon: <RotateCcw className="size-5 shrink-0 opacity-70" />,
   },
 
-  // TODO Re-enable Landmarks
-  // //landmarks
-  // {
-  //   id: "landmarks",
-  //   name: "Landmarks",
-  //   keywords: "landmark, bookmarks, markers, points, navigation, jump, goto, position, coordinates",
-  //   icon: <MapPin className="size-5 shrink-0 opacity-70" />,
-  // },
+  //landmarks
+  {
+    id: "landmarks",
+    name: "Landmarks",
+    keywords: "landmark, bookmarks, markers, points, navigation, jump, goto, position, coordinates",
+    icon: <MapPin className="size-5 shrink-0 opacity-70" />,
+  },
 
 
-  // // Individual landmark actions (jump/navigate)
-  // ...landmarks.map((landmark, index) => ({
-  //   id: `jump-to-landmark-${index}`,
-  //   name: `${landmark.label || `Landmark ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
-  //   shortcut: landmark.shortcut ? [`ctrl+${landmark.shortcut}`] : undefined,
-  //   keywords: `landmark, jump, goto, navigate, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`,
-  //   parent: "landmarks",
-  //   priority: Priority.HIGH,
-  //   perform: () => {
-  //     jumpToLandmark(landmark);
-  //     setTimeout(() => focusChart(), 100);
-  //   },
-  //   icon: <MapPin className="size-5 shrink-0 opacity-70" />,
-  // })),
+  // Individual landmark actions (jump/navigate)
+  ...landmarks.map((landmark, index) => ({
+    id: `jump-to-landmark-${index}`,
+    name: `${landmark.label || `Landmark ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
+    shortcut: landmark.shortcut ? [`ctrl+${landmark.shortcut}`] : undefined,
+    keywords: `landmark, jump, goto, navigate, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`,
+    parent: "landmarks",
+    priority: Priority.HIGH,
+    perform: () => {
+      jumpToLandmark(landmark);
+      setTimeout(() => focusChart(), 100);
+    },
+    icon: <MapPin className="size-5 shrink-0 opacity-70" />,
+  })),
 
-  // // Edit landmarks parent - only show if there are landmarks
-  // ...(landmarks.length > 0 ? [{
-  //   id: "edit-landmarks",
-  //   name: "Edit Landmarks",
-  //   keywords: "edit, modify, change, landmarks, manage, update, configure",
-  //   parent: "landmarks",
-  //   icon: <Edit className="size-5 shrink-0 opacity-70" />,
-  // }] : []),
+  // Edit landmarks parent - only show if there are landmarks
+  ...(landmarks.length > 0 ? [{
+    id: "edit-landmarks",
+    name: "Edit Landmarks",
+    keywords: "edit, modify, change, landmarks, manage, update, configure",
+    parent: "landmarks",
+    icon: <Edit className="size-5 shrink-0 opacity-70" />,
+  }] : []),
 
-  // // Edit landmark actions
-  // ...landmarks.map((landmark, index) => ({
-  //   id: `edit-landmark-${index}`,
-  //   name: `Edit ${landmark.label || `Landmark ${index + 1}`}`,
-  //   keywords: `edit, modify, change, landmark, ${landmark.label || ''}, ${landmark.shortcut ? `e${landmark.shortcut}` : ''}`,
-  //   parent: "edit-landmarks",
-  //   priority: Priority.LOW,
-  //   perform: () => {
-  //     openDialog("edit-landmark", {
-  //       landmarkData: {
-  //         functionIndex: activeFunctionIndex,
-  //         landmarkIndex: index,
-  //         landmark: landmark
-  //       }
-  //     });
-  //   },
-  //   icon: <Edit className="size-5 shrink-0 opacity-70" />,
-  // })),
+  // Edit landmark actions
+  ...landmarks.map((landmark, index) => ({
+    id: `edit-landmark-${index}`,
+    name: `Edit ${landmark.label || `Landmark ${index + 1}`}`,
+    keywords: `edit, modify, change, landmark, ${landmark.label || ''}, ${landmark.shortcut ? `e${landmark.shortcut}` : ''}`,
+    parent: "edit-landmarks",
+    priority: Priority.LOW,
+    perform: () => {
+      openDialog("edit-landmark", {
+        landmarkData: {
+          functionIndex: activeFunctionIndex,
+          landmarkIndex: index,
+          landmark: landmark
+        }
+      });
+    },
+    icon: <Edit className="size-5 shrink-0 opacity-70" />,
+  })),
 
-  // {
-  //   id: "add-landmark",
-  //   name: "Add Landmark at Cursor",
-  //   shortcut: ["ctrl+b"],
-  //   keywords: "add, create, new, landmark, bookmark, marker, current, position, cursor",
-  //   parent: "landmarks",
-  //   perform: () => {
-  //     addLandmarkAtCursor();
-  //     setTimeout(() => focusChart(), 100);
-  //   },
-  //   icon: <Plus className="size-5 shrink-0 opacity-70" />,
-  // },
+  {
+    id: "add-landmark",
+    name: "Add Landmark at Cursor",
+    shortcut: ["ctrl+b"],
+    keywords: "add, create, new, landmark, bookmark, marker, current, position, cursor",
+    parent: "landmarks",
+    perform: () => {
+      addLandmarkAtCursor();
+      setTimeout(() => focusChart(), 100);
+    },
+    icon: <Plus className="size-5 shrink-0 opacity-70" />,
+  },
 
   // // Function selection section
   // {
