@@ -419,7 +419,7 @@ export const useDynamicKBarActions = () => {
       id: `show-function-${func.id}`,
       name: `Show ${functionName}`,
       shortcut: index < 9 ? [(index + 1).toString()] : undefined,
-      keywords: `function, show, display, activate, select, switch, ${functionName}, graph, plot, f${index + 1}`,
+      keywords: `function, show, display, activate, select, switch, ${functionName}, graph, plot, f${index + 1}, Choose ${functionName}, Choose ${index + 1}`,
       parent: "function-options",
       priority: Priority.HIGH,
       perform: () => {showOnlyFunction(index); setTimeout(() => focusChart(), 100);},
