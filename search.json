@@ -42,6 +42,13 @@
     "text": "What Recipients See\nWhen someone opens your shared link: - Your functions load automatically - Interface adapts based on restriction level - Restricted features are hidden or disabled\n\nTip: Always test your shared link before sending to ensure it works as expected."
   },
   {
+    "objectID": "shortcuts.html",
+    "href": "shortcuts.html",
+    "title": "Keyboard Shortcuts",
+    "section": "",
+    "text": "Command\nAction\nKeyboard shortcut\n\n\n\n\nshow/hide menu\nshow menu to select a command\nctrl+K (cmd+K on Mac)\n\n\nmove cursor (stepwise)\nmove cursor horizontally (stepwise)\nleft and right arrows or J and L keys\n\n\nmove cursor (fluid)\nmove cursor horizontally (fluid)\nshift+(left and right arrows or J and L keys) or mouse move\n\n\njump to left or right edge\nmove cursor to the left (minX) or right (maxX) edge of the view\nPos1/Home and End\n\n\nspeed change\nshow menu to increase or decrease playing speed\nM\n\n\nstep size change\nshow menu to increase or decrease step size\nM\n\n\nmove view\nmove the displayed view up, left, down, or right\nW A S D\n\n\ncenter cursor\nreorientates the view, that the cursor is in the center\nctrl+Z (cmd+Z on Mac)\n\n\nzoom in/out (both axes)\nrescales both axes to enlarge or shrink the view around its center\nZ and shift+Z (may hold)\n\n\nzoom in/out (only X-axis)\nrescales only in the X-axis to enlarge or shrink the view around its center (only minX and maxX change)\nX+(Z or shift+Z)\n\n\nzoom in/out (only Y-axis)\nrescales only in the Y-axis to enlarge or shrink the view around its center (only minY and maxY change)\nY+(Z or shift+Z)\n\n\nreset view to default\nset the view position and zoom to its default value\nR\n\n\nturn on/off sonification\nactivate or mute sonification\nP\n\n\nplay function\nstart the function playback—the entire function will be sonified from left to right at given speed\nB\n\n\nswitch sonification\nswitch sonification mode—discrete or continuous\nI\n\n\nshow coordinates\nshow/read out current cursor coordinates (x and y)\nC\n\n\nshow view-bounds\nshow/read out current view boundaries\nV\n\n\nedit function(s)\nactivate form for editing one or more functions\nF\n\n\nnext function\nswitch to next defined function\nN\n\n\nchoose specific function\nswitch to a specific function (max 10 functions—if more functions defined, use command palette)\n1‒9\n\n\ncreate/edit landmark\ncreates a new landmark at the cursor position or edits the existing one\nctrl+b\n\n\njump between landmarks\njumps to the next or previous landmark in the view, if available\nctrl+(left and right arrow or J and L keys) (cmd+arrow keys on mac)\n\n\njump to landmark\njumps to a specific landmark (in order of creation)\nctrl+(1-9) (cmd+number key on mac)"
+  },
+  {
     "objectID": "json.html",
     "href": "json.html",
     "title": "Exporting/Importing files",
@@ -75,41 +82,6 @@
     "title": "Exporting/Importing files",
     "section": "Tweaking JSON Files",
     "text": "Tweaking JSON Files\nYou can manually edit the JSON file to modify function definitions or graph settings before importing it back into Audiofunctions+. For instance, you can visualize the following “non-graph” function\n\n\n\nScreenshot of Audiofunctions+ displaying two simultaneously active functions plotted on the same graph\n\n\nexample in the following way.\nInsert the following date in the edit functions menu:\n\n\n\nScreenshot of the Edit Functions dialog of Audiofunctions+ showing two functions being defined\n\n\nExport it to a JSON file as explained above, and then open the JSON file in a text editor. You will see something like this:\n{\n  \"functions\": [\n    {\n      \"id\": \"f1\",\n      \"functionName\": \"Function 1\",\n      \"type\": \"piecewise_function\",\n      \"functionDef\": [\n        [\"0\", \"x&lt;0\"],\n        [\"1/10 x^2\", \"x&gt;=0\"]\n      ],\n      \"isActive\": false,\n      \"instrument\": \"clarinet\",\n      \"pointOfInterests\": [],\n      \"landmarks\": []\n    },\n    {\n      \"id\": \"f2\",\n      \"functionName\": \"Function 2\",\n      \"type\": \"piecewise_function\",\n      \"functionDef\": [[\"-1/20 x^2\", \"x&gt;=0\"]],\n      \"isActive\": true,\n      \"instrument\": \"clarinet\",\n      \"pointOfInterests\": [],\n      \"landmarks\": []\n    }\n  ],\n  \"graphSettings\": {\n    \"defaultView\": [-10, 10, 10, -10],\n    \"minBoundDifference\": 0.1,\n    \"maxBoundDifference\": 100,\n    \"showGrid\": true,\n    \"showAxes\": true,\n    \"gridColor\": \"#CCCCCC\",\n    \"restrictionMode\": \"none\"\n  }\n}\nSet the field isActive of all functions from true, save the file and import it back into Audiofunctions+ as explained above.\nWhen you activate the sonification, you will hear both functions sonified simultaneously."
-  },
-  {
-    "objectID": "earcons.html",
-    "href": "earcons.html",
-    "title": "Earcons",
-    "section": "",
-    "text": "Audiofunctions uses several earcons (audio icons) to provide auditory feedback to the user. Below are the earcons used in the application:"
-  },
-  {
-    "objectID": "earcons.html#navigation-and-movement-sounds",
-    "href": "earcons.html#navigation-and-movement-sounds",
-    "title": "Earcons",
-    "section": "Navigation and Movement Sounds",
-    "text": "Navigation and Movement Sounds\nChart Border Start    Plays specifically when batch sonification begins and the cursor moves away from the left boundary of the chart. This indicates the start of a batch playback session.\nChart Border    Plays when the cursor reaches the edge of the visible chart area during navigation. This helps users understand when they’ve reached the boundaries of the current view."
-  },
-  {
-    "objectID": "earcons.html#function-analysis-sounds",
-    "href": "earcons.html#function-analysis-sounds",
-    "title": "Earcons",
-    "section": "Function Analysis Sounds",
-    "text": "Function Analysis Sounds\nY-Axis Intersection    Plays when a function crosses the y-axis (where x = 0). This helps users orient themselves within the graph by identifying when functions intersect the vertical axis.\nNegative Values    Plays in background when the function value is negative (y &lt; 0). This audio cue helps users identify when they are in the negative region of the graph below the x-axis.\nNo Y Value    Plays when no functions are visible at the current cursor position, when functions go out of bounds, or when encountering discontinuities in functions (such as division by zero or undefined values)."
-  },
-  {
-    "objectID": "earcons.html#landmark-sounds",
-    "href": "earcons.html#landmark-sounds",
-    "title": "Earcons",
-    "section": "Landmark Sounds",
-    "text": "Landmark Sounds\nTriangle Landmark    Plays when the cursor encounters a triangle-shaped landmark that has been placed on the graph.\nSquare Landmark    Plays when the cursor encounters a square-shaped landmark that has been placed on the graph.\nDiamond Landmark    Plays when the cursor encounters a diamond-shaped landmark that has been placed on the graph."
-  },
-  {
-    "objectID": "earcons.html#interaction-feedback-sounds",
-    "href": "earcons.html#interaction-feedback-sounds",
-    "title": "Earcons",
-    "section": "Interaction Feedback Sounds",
-    "text": "Interaction Feedback Sounds\nNotification    Plays when the cursor passes over points of interest while navigating in discrete mode with arrow keys. This alerts users to important locations on functions that would otherwise be missed due to the step size in discrete navigation.\nDeny    Plays when the user attempts to zoom or pan beyond the allowable limits of the chart view. This indicates that further navigation in that direction is not possible.\n\nThese earcons work together with the continuous tone sonification to provide a comprehensive audio experience that helps users navigate and understand mathematical functions through sound."
   },
   {
     "objectID": "index.html",
@@ -154,11 +126,39 @@
     "text": "Need Help?\nFirst time using Audiofunctions+? Start by pressing Ctrl+K (or Cmd+K on Mac) to open the command menu - it will guide you through available actions. You can also press F1 at any time to open the help menu.\nHaving issues or suggestions? We’d love to hear from you! You can reach out to the development team or share your feedback to help us improve the application for everyone.\n\n    Report issues or request features      Send feedback via email \n\n \n\nThis project is supported by the SONification for Accessible and Inclusive Representation of GRAPHs in Education (SONAIRGRAPH) project, which is an Erasmus+ key action 2 (project number 2024-1-IT02-KA220-HED-000244481), funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Education and Culture Executive Agency (EACEA). Neither the European Union nor EACEA can be held responsible for them."
   },
   {
-    "objectID": "shortcuts.html",
-    "href": "shortcuts.html",
-    "title": "Keyboard Shortcuts",
+    "objectID": "earcons.html",
+    "href": "earcons.html",
+    "title": "Earcons",
     "section": "",
-    "text": "Command\nAction\nKeyboard shortcut\n\n\n\n\nshow/hide menu\nshow menu to select a command\nctrl+K (cmd+K on Mac)\n\n\nmove cursor (stepwise)\nmove cursor horizontally (stepwise)\nleft and right arrows or J and L keys\n\n\nmove cursor (fluid)\nmove cursor horizontally (fluid)\nshift+(left and right arrows or J and L keys) or mouse move\n\n\njump to left or right edge\nmove cursor to the left (minX) or right (maxX) edge of the view\nPos1/Home and End\n\n\nspeed change\nshow menu to increase or decrease playing speed\nM\n\n\nstep size change\nshow menu to increase or decrease step size\nM\n\n\nmove view\nmove the displayed view up, left, down, or right\nW A S D\n\n\ncenter cursor\nreorientates the view, that the cursor is in the center\nctrl+Z (cmd+Z on Mac)\n\n\nzoom in/out (both axes)\nrescales both axes to enlarge or shrink the view around its center\nZ and shift+Z (may hold)\n\n\nzoom in/out (only X-axis)\nrescales only in the X-axis to enlarge or shrink the view around its center (only minX and maxX change)\nX+(Z or shift+Z)\n\n\nzoom in/out (only Y-axis)\nrescales only in the Y-axis to enlarge or shrink the view around its center (only minY and maxY change)\nY+(Z or shift+Z)\n\n\nreset view to default\nset the view position and zoom to its default value\nR\n\n\nturn on/off sonification\nactivate or mute sonification\nP\n\n\nplay function\nstart the function playback—the entire function will be sonified from left to right at given speed\nB\n\n\nswitch sonification\nswitch sonification mode—discrete or continuous\nI\n\n\nshow coordinates\nshow/read out current cursor coordinates (x and y)\nC\n\n\nshow view-bounds\nshow/read out current view boundaries\nV\n\n\nedit function(s)\nactivate form for editing one or more functions\nF\n\n\nnext function\nswitch to next defined function\nN\n\n\nchoose specific function\nswitch to a specific function (max 10 functions—if more functions defined, use command palette)\n1‒9\n\n\ncreate/edit landmark\ncreates a new landmark at the cursor position or edits the existing one\nctrl+b\n\n\njump between landmarks\njumps to the next or previous landmark in the view, if available\nctrl+(left and right arrow or J and L keys) (cmd+arrow keys on mac)\n\n\njump to landmark\njumps to a specific landmark (in order of creation)\nctrl+(1-9) (cmd+number key on mac)"
+    "text": "Audiofunctions uses several earcons (audio icons) to provide auditory feedback to the user. Below are the earcons used in the application:"
+  },
+  {
+    "objectID": "earcons.html#navigation-and-movement-sounds",
+    "href": "earcons.html#navigation-and-movement-sounds",
+    "title": "Earcons",
+    "section": "Navigation and Movement Sounds",
+    "text": "Navigation and Movement Sounds\nChart Border Start    Plays specifically when batch sonification begins and the cursor moves away from the left boundary of the chart. This indicates the start of a batch playback session.\nChart Border    Plays when the cursor reaches the edge of the visible chart area during navigation. This helps users understand when they’ve reached the boundaries of the current view."
+  },
+  {
+    "objectID": "earcons.html#function-analysis-sounds",
+    "href": "earcons.html#function-analysis-sounds",
+    "title": "Earcons",
+    "section": "Function Analysis Sounds",
+    "text": "Function Analysis Sounds\nY-Axis Intersection    Plays when a function crosses the y-axis (where x = 0). This helps users orient themselves within the graph by identifying when functions intersect the vertical axis.\nNegative Values    Plays in background when the function value is negative (y &lt; 0). This audio cue helps users identify when they are in the negative region of the graph below the x-axis.\nNo Y Value    Plays when no functions are visible at the current cursor position, when functions go out of bounds, or when encountering discontinuities in functions (such as division by zero or undefined values)."
+  },
+  {
+    "objectID": "earcons.html#landmark-sounds",
+    "href": "earcons.html#landmark-sounds",
+    "title": "Earcons",
+    "section": "Landmark Sounds",
+    "text": "Landmark Sounds\nTriangle Landmark    Plays when the cursor encounters a triangle-shaped landmark that has been placed on the graph.\nSquare Landmark    Plays when the cursor encounters a square-shaped landmark that has been placed on the graph.\nDiamond Landmark    Plays when the cursor encounters a diamond-shaped landmark that has been placed on the graph."
+  },
+  {
+    "objectID": "earcons.html#interaction-feedback-sounds",
+    "href": "earcons.html#interaction-feedback-sounds",
+    "title": "Earcons",
+    "section": "Interaction Feedback Sounds",
+    "text": "Interaction Feedback Sounds\nNotification    Plays when the cursor passes over points of interest while navigating in discrete mode with arrow keys. This alerts users to important locations on functions that would otherwise be missed due to the step size in discrete navigation.\nDeny    Plays when the user attempts to zoom or pan beyond the allowable limits of the chart view. This indicates that further navigation in that direction is not possible.\n\nThese earcons work together with the continuous tone sonification to provide a comprehensive audio experience that helps users navigate and understand mathematical functions through sound."
   },
   {
     "objectID": "home.html",
