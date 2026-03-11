@@ -11,6 +11,7 @@ import ImportJsonDialog from "../components/ui/dialogs/ImportJsonDialog";
 import WelcomeDialog from "../components/ui/dialogs/WelcomeDialog";
 import AboutDialog from "../components/ui/dialogs/AboutDialog";
 import EditLandmarkDialog from "../components/ui/dialogs/EditLandmarkDialog";
+import NavigationHelpDialog from "../components/ui/dialogs/NavigationHelpDialog";
 
 const DialogContext = createContext();
 
@@ -96,6 +97,12 @@ export function DialogProvider({ children }) {
         isOpen={dialog.type === "edit-landmark"}
         onClose={closeDialog}
         landmarkData={dialog.props?.landmarkData || null}
+      />
+
+      <NavigationHelpDialog
+        isOpen={dialog.type === "navigation-help"}
+        onClose={closeDialog}
+        {...dialog.props}
       />
     </DialogContext.Provider>
   );

@@ -1,7 +1,7 @@
 import { useRegisterActions, Priority } from "kbar";
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
-  ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, BookOpen, Info, Target } from "lucide-react"
+  ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, BookOpen, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, updateFunctionN, setFunctionInstrumentN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN, findLandmarkByShortcut } from "../../utils/graphObjectOperations";
 import { getScreenPosition, jumpToLandmarkWithToast, addLandmarkAtCursorPosition } from "../../utils/landmarkUtils";
@@ -215,7 +215,7 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "toggle-audio",
-      name: isAudioEnabled ? "Stop Audio" : "Start Audio",
+      name: isAudioEnabled ? "Disable Sound" : "Enable Sound",
       shortcut: ["p"],
       keywords: "audio, sound, enable, disable, start, stop, toggle, sonify, sonification, music, tone, mute, unmute, volume, hearing",
       parent: "quick-options",
@@ -225,109 +225,111 @@ export const useDynamicKBarActions = () => {
         : <Volume2 className="size-5 shrink-0 opacity-70" />,
     },
 
-  {
-    id: "show-coordinates",
-    name: "Show Current Coordinates",
-    shortcut: ["c"],
-    keywords: "coordinates, position, location, cursor, point, x, y, current, where, place",
-    parent: "quick-options",
-    perform: () => {showCoordinates(); setTimeout(() => focusChart(), 100);},
-    icon: <MapPin className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "show-view-bounds",
-    name: "Show current view bounds",
-    shortcut: ["v"],
-    keywords: "bound, view, range, axis, limits, window, viewport, boundaries, min, max, xmin, xmax, ymin, ymax, scale, zoom",
-    parent: "quick-options",
-    perform: () => {showViewBounds(); setTimeout(() => focusChart(), 100);},
-    icon: <Ruler className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "center-at-cursor",
-    name: "Center View at Cursor",
-    shortcut: ["ctrl+z"],
-    keywords: "center, cursor, view, middle, position, focus, centering, navigate, jump, move",
-    parent: "quick-options",
-    perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
-    icon: <Target className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "zoom-in",
-    name: "Zoom In",
-    shortcut: ["z (may hold)"],
-    keywords: "zoom, in, closer, magnify, enlarge, scale, view, detail",
-    parent: "quick-options",
-    perform: () => {ZoomBoard(false);; setTimeout(() => focusChart(), 100);},
-    icon: <ZoomIn className="size-5 shrink-0 opacity-70" />
-  },
-
-  {
-    id: "zoom-out",
-    name: "Zoom Out",
-    shortcut: ["shift+z (may hold)"],
-    keywords: "zoom, out, farther, shrink, reduce, scale, view, overview",
-    parent: "quick-options",
-    perform: () => {ZoomBoard(true);; setTimeout(() => focusChart(), 100);},
-    icon: <ZoomOut className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "next-function",
-    name: "Next Function",
-    shortcut: ["n"],
-    keywords: "switch, function, next, rotate, cycle, change, active, select, navigate, iterate, loop",
-    parent: "quick-options",
-    perform: () => {switchToNextFunction(); setTimeout(() => focusChart(), 100);},
-    icon: <ListRestart className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "play-function",
-    name: "Play Function",
-    shortcut: ["b"],
-    keywords: "play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole",
-    parent: "quick-options",
-    perform: () => {setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })); setTimeout(() => focusChart(), 100);},
-    icon: <Play className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "toggle-sonification-type",
-    name: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Continuous' : 'Discrete'}`,
-    shortcut: ["i"],
-    keywords: "sonification, instrument, discrete, continuous, guitar, clarinet, toggle, sound, type, mode, timbre",
-    parent: "quick-options",
-    perform: () => {toggleSonificationType(); setTimeout(() => focusChart(), 100);},
-    icon: <Music className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "reset-view",
-    name: "Reset View",
-    shortcut: ["r"],
-    keywords: "reset, restore, standard, default, original, initial, revert, back",
-    parent: "quick-options",
-    perform: () => {
-      const defaultView = graphSettings?.defaultView;
-      if (defaultView && Array.isArray(defaultView) && defaultView.length === 4) {
-          const [xMin, xMax, yMax, yMin] = defaultView;
-          setGraphBounds({ xMin, xMax, yMin, yMax });
-        } else {
-          setGraphBounds({ xMin: -10, xMax: 10, yMin: -10, yMax: 10 });
-        }
-        updateCursor(0);
-
-        announce("View reset to default values");
-        showInfoToast("Default view", 1500);
-
-        setTimeout(() => focusChart(), 100);
+    {
+      id: "play-function",
+      name: "Play Function",
+      shortcut: ["b"],
+      keywords: "play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole",
+      parent: "quick-options",
+      perform: () => {setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })); setTimeout(() => focusChart(), 100);},
+      icon: <Play className="size-5 shrink-0 opacity-70" />,
     },
-    icon: <RotateCcw className="size-5 shrink-0 opacity-70" />,
-  },
+
+    {
+      id: "next-function",
+      name: "Next Function",
+      shortcut: ["n"],
+      keywords: "switch, function, next, rotate, cycle, change, active, select, navigate, iterate, loop",
+      parent: "quick-options",
+      perform: () => {switchToNextFunction(); setTimeout(() => focusChart(), 100);},
+      icon: <ListRestart className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "toggle-sonification-type",
+      name: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Continuous' : 'Discrete'}`,
+      shortcut: ["i"],
+      keywords: "sonification, instrument, discrete, continuous, guitar, clarinet, toggle, sound, type, mode, timbre",
+      parent: "quick-options",
+      perform: () => {toggleSonificationType(); setTimeout(() => focusChart(), 100);},
+      icon: <Music className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "show-coordinates",
+      name: "Show Current Coordinates",
+      shortcut: ["c"],
+      keywords: "coordinates, position, location, cursor, point, x, y, current, where, place",
+      parent: "quick-options",
+      perform: () => {showCoordinates(); setTimeout(() => focusChart(), 100);},
+      icon: <MapPin className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "show-view-bounds",
+      name: "Show current view bounds",
+      shortcut: ["v"],
+      keywords: "bound, view, range, axis, limits, window, viewport, boundaries, min, max, xmin, xmax, ymin, ymax, scale, zoom",
+      parent: "quick-options",
+      perform: () => {showViewBounds(); setTimeout(() => focusChart(), 100);},
+      icon: <Ruler className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "center-at-cursor",
+      name: "Center View at Cursor",
+      shortcut: ["ctrl+z"],
+      keywords: "center, cursor, view, middle, position, focus, centering, navigate, jump, move",
+      parent: "quick-options",
+      perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
+      icon: <Target className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "zoom-in",
+      name: "Zoom In",
+      shortcut: ["z (may hold)"],
+      keywords: "zoom, in, closer, magnify, enlarge, scale, view, detail",
+      parent: "quick-options",
+      perform: () => {ZoomBoard(false);; setTimeout(() => focusChart(), 100);},
+      icon: <ZoomIn className="size-5 shrink-0 opacity-70" />
+    },
+
+    {
+      id: "zoom-out",
+      name: "Zoom Out",
+      shortcut: ["shift+z (may hold)"],
+      keywords: "zoom, out, farther, shrink, reduce, scale, view, overview",
+      parent: "quick-options",
+      perform: () => {ZoomBoard(true);; setTimeout(() => focusChart(), 100);},
+      icon: <ZoomOut className="size-5 shrink-0 opacity-70" />,
+    },
+
+    {
+      id: "reset-view",
+      name: "Reset View",
+      shortcut: ["r"],
+      keywords: "reset, restore, standard, default, original, initial, revert, back",
+      parent: "quick-options",
+      perform: () => {
+        const defaultView = graphSettings?.defaultView;
+        if (defaultView && Array.isArray(defaultView) && defaultView.length === 4) {
+            const [xMin, xMax, yMax, yMin] = defaultView;
+            setGraphBounds({ xMin, xMax, yMin, yMax });
+          } else {
+            setGraphBounds({ xMin: -10, xMax: 10, yMin: -10, yMax: 10 });
+          }
+          updateCursor(0);
+
+          announce("View reset to default values");
+          showInfoToast("Default view", 1500);
+
+          setTimeout(() => focusChart(), 100);
+      },
+      icon: <RotateCcw className="size-5 shrink-0 opacity-70" />,
+    },
+
+
 
   //landmarks
   {
@@ -468,7 +470,18 @@ export const useDynamicKBarActions = () => {
     parent: "diagram-options",
     perform: () => openDialog("movement-adjustments"),
     icon: <CircleGauge className="size-5 shrink-0 opacity-70" />,
-  },
+    },
+
+
+    {
+      id: "navigation-help",
+      name: "Navigation Help",
+      keywords: "navigation, shortcuts, keyboard, controls, help, guide, movement, cursor, zoom, pan, audio, instructions",
+      // parent: "help-section",
+      perform: () => openDialog("navigation-help"),
+      icon: <Move className="size-5 shrink-0 opacity-70" />,
+      priority: Priority.NORMAL,
+    },
 
   // Import/Export - only show if not in read-only or full-restriction mode
   ...(!isReadOnly && !isFullyRestricted ? [
@@ -572,19 +585,29 @@ export const useDynamicKBarActions = () => {
 
   // Help section
   {
+    id: "help-section",
+    name: "Help & Information",
+    keywords: "help, information, about, tutorial, guide, documentation, manual, instructions, support",
+    icon: <HelpCircle className="size-5 shrink-0 opacity-70" />,
+    priority: Priority.LOW,
+  },
+
+  {
     id: "help",
     name: "Help",
     keywords: "help, tutorial, guide, welcome, introduction, getting, started, how, to, use, learn, documentation, manual, instructions",
     shortcut: ["F1"],
+    parent: "help-section",
     perform: () => openDialog("welcome"),
     icon: <HelpCircle className="size-5 shrink-0 opacity-70" />,
-    priority: Priority.LOW,
+    priority: Priority.NORMAL,
   },
 
   {
     id: "about",
     name: "About AudioFunctions+",
     keywords: "about, info, information, copyright, license, developers, version, team, credits, acknowledgments, universities, funding, eu, project",
+    parent: "help-section",
     perform: () => openDialog("about"),
     icon: <Info className="size-5 shrink-0 opacity-70" />,
     priority: Priority.LOW,

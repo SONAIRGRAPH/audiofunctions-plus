@@ -687,6 +687,13 @@ text.JXGtext {
   background-color: var(--color-border);
 }
 
+/* Ensure lists inside dialogs use the standard base font size (consistent with other dialog text) */
+[role="dialog"] ul,
+[role="dialog"] ol,
+[role="dialog"] li {
+  font-size: 1rem;
+}
+
 /* Dark theme adjustments */
 [data-theme="dark"] .kbd {
   background-color: var(--color-elem-background);
