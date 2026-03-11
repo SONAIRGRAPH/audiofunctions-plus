@@ -98,6 +98,13 @@ const NavigationHelpDialog = ({ isOpen, onClose }) => {
             tabIndex={-1}
           >
             <div className="space-y-6">
+              {/* JAWS hint for screen reader users */}
+              <div className="info-box mt-3" role="note" aria-label="JAWS Hinweis">
+                <p className="text-descriptions">
+                  <strong>Note for JAWS users:</strong> Arrow keys may conflict with JAWS — use <kbd className="kbd">J</kbd> and <kbd className="kbd">L</kbd> instead.
+                </p>
+              </div>
+
               {/* Cursor Movement */}
               <div>
                 <h2 className="text-titles font-semibold mb-3">Cursor Movement</h2>
@@ -108,6 +115,7 @@ const NavigationHelpDialog = ({ isOpen, onClose }) => {
                   <li>Mouse cursor navigation: <kbd className="kbd">Use Mouse</kbd> - loudness indicates y-distance between the mousecursor postion and the functiongraph</li>
                 </ul>
               </div>
+
 
               {/* View Control */}
               <div>
