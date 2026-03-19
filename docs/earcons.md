@@ -31,7 +31,7 @@ Plays when a function crosses the y-axis (where x = 0). This helps users orient 
 
 **Negative Values**
 <audio controls style="display: block; margin: auto;"> 
-  <source src="earcons/negative_values.mp3" type="audio/wav"/>
+  <source src="earcons/af_noise.mp3" type="audio/wav"/>
 </audio>
 Plays in background when the function value is negative (y < 0). This audio cue helps users identify when they are in the negative region of the graph below the x-axis.
 
