@@ -154,7 +154,8 @@ export function handleExistingLandmarkFound(landmark, landmarkIndex, functionInd
     landmarkData: {
       functionIndex: functionIndex,
       landmarkIndex: landmarkIndex,
-      landmark: landmark
+      landmark: landmark,
+      isNewLandmark: false
     }
   });
 }
@@ -217,22 +218,22 @@ export function addLandmarkAtCursorPosition(
   // Update function definitions
   setFunctionDefinitions(result.definitions);
 
-  // Announce success
-  const shortcutText = result.shortcut ? `, shortcut: Ctrl+${result.shortcut}` : '';
-  announce(`${result.message}${shortcutText}`);
-  showInfoToast(`Landmark added${result.shortcut ? ` (Ctrl+${result.shortcut})` : ''}`, 2000);
-
   // Open new landmark in edit dialog
   const updatedLandmarks = getLandmarksN(result.definitions, activeFunctionIndex);
   const newLandmarkIndex = updatedLandmarks.length - 1;
   const newLandmark = updatedLandmarks[newLandmarkIndex];
+
+  // Create backup of functionDefinitions BEFORE the landmark was added
+  const backupBeforeAdd = JSON.parse(JSON.stringify(functionDefinitions));
 
   setTimeout(() => {
     openDialog("edit-landmark", {
       landmarkData: {
         functionIndex: activeFunctionIndex,
         landmarkIndex: newLandmarkIndex,
-        landmark: newLandmark
+        landmark: newLandmark,
+        backupFunctionDefinitions: backupBeforeAdd,
+        shortcut: result.shortcut
       }
     });
   }, 100);

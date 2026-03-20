@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Description, Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useGraphContext } from "../../../context/GraphContext";
 import { useAnnouncement } from "../../../context/AnnouncementContext";
+import { useInfoToast } from "../../../context/InfoToastContext";
 import { updateLandmarkWithValidation, getLandmarksN, validateLandmarkCoordinates, removeLandmarkWithValidation } from "../../../utils/graphObjectOperations";
 import { create, all } from 'mathjs';
 import { checkMathSpell, transformMathConstants } from "../../../utils/parse";
@@ -13,11 +14,13 @@ const math = create(all, config);
 const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
   const { functionDefinitions, setFunctionDefinitions } = useGraphContext();
   const { announce } = useAnnouncement();
+  const { showInfoToast } = useInfoToast();
 
   const [statusMessage, setStatusMessage] = useState('');
   const [inputErrors, setInputErrors] = useState({});
   const landmarkDataBackup = useRef(null);
   const functionDefinitionsBackup = useRef(null); // Add backup for function definitions
+
   const appearanceChangedRef = useRef(false); // Track if selection changed to prevent double-playing earcon
   const appearanceSelectOpenedRef = useRef(false); // Track if select dropdown was actually opened
 
@@ -100,7 +103,14 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
   // Initialize landmark data when dialog opens
   useEffect(() => {
     if (isOpen && landmarkData) {
-      const { functionIndex, landmarkIndex, landmark } = landmarkData;
+      const { functionIndex, landmarkIndex, landmark, backupFunctionDefinitions } = landmarkData;
+
+      // For new landmarks, use provided backup; for existing landmarks, create our own backup
+      if (backupFunctionDefinitions) {
+        functionDefinitionsBackup.current = backupFunctionDefinitions;
+      } else {
+        functionDefinitionsBackup.current = JSON.parse(JSON.stringify(functionDefinitions));
+      }
 
       // Create backup of the landmark data
       landmarkDataBackup.current = {
@@ -109,8 +119,7 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
         landmark: { ...landmark }
       };
 
-      // Create backup of the entire function definitions
-      functionDefinitionsBackup.current = JSON.parse(JSON.stringify(functionDefinitions));
+
 
       setLocalLandmark({
         label: landmark.label || '',
@@ -315,7 +324,17 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
 
     // Update function definitions with the validated changes
     setFunctionDefinitions(result.definitions);
-    announceStatus(`Landmark updated successfully.`);
+
+    // Show appropriate success message and toast
+    if (landmarkData?.backupFunctionDefinitions) {
+      // This is a new landmark being saved
+      const shortcutText = landmarkData.shortcut ? ` (Ctrl+${landmarkData.shortcut})` : '';
+      announceStatus(`New landmark created successfully.${shortcutText}`);
+      showInfoToast(`Landmark added${shortcutText}`, 2000);
+    } else {
+      // This is an existing landmark being updated
+      announceStatus(`Landmark updated successfully.`);
+    }
 
     // Clear backups since changes are accepted
     landmarkDataBackup.current = null;
@@ -358,10 +377,17 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
   };
 
   const handleCancel = () => {
-    // Restore original function definitions if we have a backup
+    // Handle cancellation based on whether this is a new or existing landmark
     if (functionDefinitionsBackup.current !== null) {
-      setFunctionDefinitions(functionDefinitionsBackup.current);
-      announceStatus('Changes cancelled and reverted.');
+      if (landmarkData?.backupFunctionDefinitions) {
+        // For new landmarks, restore backup (which removes the new landmark)
+        setFunctionDefinitions(functionDefinitionsBackup.current);
+        announceStatus('New landmark cancelled and removed.');
+      } else {
+        // For existing landmarks, restore backup (which reverts changes)
+        setFunctionDefinitions(functionDefinitionsBackup.current);
+        announceStatus('Changes cancelled and reverted.');
+      }
     } else {
       announceStatus('Changes cancelled.');
     }
@@ -461,6 +487,13 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
             <Description id="dialog-description" className="text-descriptions">
               Edit landmark properties. The Y coordinate is automatically calculated based on the X coordinate and function.
             </Description>
+            
+            {/* Shortcut display */}
+            {(landmarkData?.shortcut || landmarkData?.landmark?.shortcut) && (
+              <div className="mt-2 text-sm text-txt-subtitle">
+                Shortcut: Ctrl+{landmarkData?.shortcut || landmarkData?.landmark?.shortcut}
+              </div>
+            )}
           </div>
 
           {/* Live region for status announcements */}
