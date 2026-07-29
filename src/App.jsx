@@ -1,4 +1,3 @@
-import './App.css';
 import { KBarProvider, useKBar } from 'kbar';
 import CommandBar from './components/ui/CommandPalette';
 import GraphView from './components/graph/GraphView';
@@ -88,8 +87,8 @@ const KBarWrapper = () => {
           position: 'absolute',
           top: '-40px',
           left: '6px',
-          background: 'var(--color-primary)',
-          color: 'var(--color-txt-title)',
+          background: 'var(--af-primary)',
+          color: 'var(--af-text-title)',
           padding: '8px 16px',
           textDecoration: 'none',
           borderRadius: '4px',

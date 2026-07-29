@@ -36,7 +36,7 @@ const Header = () => {
           {isAudioEnabled ? (
             <Volume2 className="size-7 text-primary" />
           ) : (
-            <VolumeX className="size-7 text-red-500" />
+            <VolumeX className="size-7 text-danger" />
           )}
         </button>
 

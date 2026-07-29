@@ -7,10 +7,20 @@ import { getFunctionNameN, updateFunctionN, setFunctionInstrumentN, getFunctionI
 import { getScreenPosition, jumpToLandmarkWithToast, addLandmarkAtCursorPosition } from "../../utils/landmarkUtils";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
 import { useDialog } from "../../context/DialogContext";
-import { setTheme } from "../../utils/theme";
+import { THEMES, setTheme } from "../../utils/theme";
 import { useZoomBoard, useCenterAtCursor } from "./KeyboardHandler";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
+
+// Icon per theme. A new theme only needs one line here -- label, keywords and
+// announcement live in the THEMES registry in utils/theme.js.
+const THEME_ICONS = {
+  system: SunMoon,
+  light: Sun,
+  dark: Moon,
+  "high-contrast": Contrast,
+  "deuteranopia-protanopia-friendly": Eye,
+};
 
 export const useDynamicKBarActions = () => {
   const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart } = useGraphContext();
@@ -538,50 +548,17 @@ export const useDynamicKBarActions = () => {
     icon: <SwatchBook className="size-5 shrink-0 opacity-70" />,
   },
 
-  {
-    id: "system-theme",
-    name: "Use System Theme",
-    keywords: "theme, system, automatic, os, operating, preference, default, follow",
-    parent: "change-theme",
-    perform: () => {setTheme("system"); announce("Theme set to system preference");},
-    icon: <SunMoon className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "light-theme",
-    name: "Light Theme",
-    keywords: "theme, light, bright, white, day, normal, standard",
-    parent: "change-theme",
-    perform: () => {setTheme("light"); announce("Theme set to light mode");},
-    icon: <Sun className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "dark-theme",
-    name: "Dark Theme",
-    keywords: "theme, dark, night, black, low, light, eyes",
-    parent: "change-theme",
-    perform: () => {setTheme("dark"); announce("Theme set to dark mode");},
-    icon: <Moon className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "high-contrast-theme",
-    name: "High Contrast Theme",
-    keywords: "theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold",
-    parent: "change-theme",
-    perform: () => {setTheme("high-contrast"); announce("Theme set to high contrast mode");},
-    icon: <Contrast className="size-5 shrink-0 opacity-70" />,
-  },
-
-  {
-    id: "deuteranopia-protanopia-friendly-theme",
-    name: "Deuteranopia/Protanopia Friendly Theme",
-    keywords: "theme, deuteranopia, protanopia, colorblind, accessibility, vision, friendly, color, blind, impaired, green, red",
-    parent: "change-theme",
-    perform: () => {setTheme("deuteranopia-protanopia-friendly"); announce("Theme set to deuteranopia/protanopia friendly mode");},
-    icon: <Eye className="size-5 shrink-0 opacity-70" />,
-  },
+  ...THEMES.map((theme) => {
+    const Icon = THEME_ICONS[theme.id] ?? SwatchBook;
+    return {
+      id: `${theme.id}-theme`,
+      name: theme.label,
+      keywords: theme.keywords,
+      parent: "change-theme",
+      perform: () => { setTheme(theme.id); announce(theme.announcement); },
+      icon: <Icon className="size-5 shrink-0 opacity-70" />,
+    };
+  }),
 
   // Help section
   {

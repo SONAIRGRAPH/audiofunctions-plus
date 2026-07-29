@@ -352,7 +352,7 @@ const ShareDialog = ({ isOpen, onClose }) => {
               <div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-md font-semibold text-titles mb-1">Restriction Mode</h3>
+                    <h3 className="text-base font-semibold text-titles mb-1">Restriction Mode</h3>
                     <p className="text-sm text-descriptions">
                       Control how users can interact with shared graphs
                     </p>
@@ -377,7 +377,7 @@ const ShareDialog = ({ isOpen, onClose }) => {
               <div>
                 <div
                   onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                  className="flex items-center space-x-2 text-md font-semibold text-titles cursor-pointer select-none"
+                  className="flex items-center space-x-2 text-base font-semibold text-titles cursor-pointer select-none"
                   aria-expanded={showAdvancedOptions}
                   aria-controls="advanced-options"
                   role="button"

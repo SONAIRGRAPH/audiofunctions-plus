@@ -1,123 +1,111 @@
 /**
- * Theme utility functions for managing application theme
+ * Themes.
+ *
+ * A theme consists of exactly two parts:
+ *   1. a block in src/styles/theme.css
+ *   2. an entry in THEMES below
+ * The command palette additionally needs an icon in THEME_ICONS in
+ * PaletteActions_dyn.jsx.
+ *
+ * The underlying mechanics (localStorage, attribute on <html>, validation)
+ * live in prefs.js and are shared with the other display preferences.
  */
 
+import { definePreference, applyStoredPreferences } from './prefs';
+
 /**
- * Initialize theme from localStorage or system preference
+ * Registry of every selectable theme.
+ *
+ * 'system' is not a CSS block but follows the operating system setting and
+ * resolves to either 'light' or 'dark'.
+ *
+ * @type {{id: string, label: string, keywords: string, announcement: string}[]}
  */
-export function initializeTheme() {
-  // Get saved theme from localStorage
-  let savedTheme = null;
-  try {
-    savedTheme = localStorage.getItem('theme');
-    // console.log("Saved theme:", savedTheme);
-  } catch (error) {
-    console.warn('localStorage not available for theme, using system preference:', error);
-  }
+export const THEMES = [
+  {
+    id: 'system',
+    label: 'Use System Theme',
+    keywords: 'theme, system, automatic, os, operating, preference, default, follow',
+    announcement: 'Theme set to system preference',
+  },
+  {
+    id: 'light',
+    label: 'Light Theme',
+    keywords: 'theme, light, bright, white, day, normal, standard',
+    announcement: 'Theme set to light mode',
+  },
+  {
+    id: 'dark',
+    label: 'Dark Theme',
+    keywords: 'theme, dark, night, black, low, light, eyes',
+    announcement: 'Theme set to dark mode',
+  },
+  {
+    id: 'high-contrast',
+    label: 'High Contrast Theme',
+    keywords: 'theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold',
+    announcement: 'Theme set to high contrast mode',
+  },
+  {
+    id: 'deuteranopia-protanopia-friendly',
+    label: 'Deuteranopia/Protanopia Friendly Theme',
+    keywords:
+      'theme, deuteranopia, protanopia, colorblind, accessibility, vision, friendly, color, blind, impaired, green, red',
+    announcement: 'Theme set to deuteranopia/protanopia friendly mode',
+  },
+];
 
-  // Apply the saved theme or use system preference as fallback
-  if (savedTheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  } else if (savedTheme === 'high-contrast') {
-    document.documentElement.setAttribute('data-theme', 'high-contrast');
-  } else if (savedTheme === 'deuteranopia-protanopia-friendly') {
-    document.documentElement.setAttribute('data-theme', 'deuteranopia-protanopia-friendly');
-  } else if (savedTheme === 'light') {
-    document.documentElement.removeAttribute('data-theme');
-  } else {
-    applySystemTheme();
-  }
+export const THEME_IDS = THEMES.map((theme) => theme.id);
 
-  // Add listener for system theme changes
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  mediaQuery.addEventListener('change', handleSystemThemeChange);
-}
+const systemDarkQuery = () => window.matchMedia('(prefers-color-scheme: dark)');
 
-/**
- * Apply system theme preference
- */
-function applySystemTheme() {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (prefersDark) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  } else {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-}
-
-/**
- * Handle system theme change events
- * @param {MediaQueryListEvent} e - Media query change event
- */
-function handleSystemThemeChange(e) {
-  // Only update if user is using system theme (no theme in localStorage)
-  let hasThemeInStorage = false;
-  try {
-    hasThemeInStorage = !!localStorage.getItem('theme');
-  } catch (error) {
-    console.warn('localStorage not available for theme check:', error);
-  }
-
-  if (!hasThemeInStorage) {
-    if (e.matches) {
-      // System switched to dark mode
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      // System switched to light mode
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
-  }
-}
+export const themePref = definePreference({
+  key: 'theme',
+  attr: 'data-theme',
+  values: THEME_IDS,
+  fallback: 'system',
+  resolve: (id) => (id === 'system' ? (systemDarkQuery().matches ? 'dark' : 'light') : id),
+});
 
 /**
- * Set theme and save preference to localStorage
- * @param {string} theme - Theme name ('light', 'dark', 'high-contrast', 'colorblind-friendly', or 'system')
+ * Sets the theme and remembers it.
+ * @param {string} theme - an id from THEMES
  */
 export function setTheme(theme) {
-  // console.log("Setting theme to:", theme);
-  if (theme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    try {
-      localStorage.setItem('theme', 'dark');
-    } catch (error) {
-      console.warn('Unable to save theme to localStorage:', error);
+  themePref.set(theme);
+}
+
+/**
+ * The selected preference -- may be 'system'.
+ * @returns {string}
+ */
+export function getTheme() {
+  return themePref.get();
+}
+
+/**
+ * The theme actually in effect, with 'system' already resolved. Use this to
+ * mark the active entry in the command palette.
+ * @returns {string}
+ */
+export function getResolvedTheme() {
+  return themePref.getResolved();
+}
+
+/**
+ * Applies every display preference and keeps the theme following the OS
+ * setting for as long as 'system' is selected.
+ *
+ * Called from main.jsx before the first render. The inline script in
+ * index.html has usually set the attributes by then, so this call acts as a
+ * safeguard and additionally installs the listener.
+ */
+export function initializeTheme() {
+  applyStoredPreferences();
+
+  systemDarkQuery().addEventListener('change', () => {
+    if (getTheme() === 'system') {
+      themePref.apply();
     }
-  }
-  else if (theme === 'high-contrast') {
-    document.documentElement.setAttribute('data-theme', 'high-contrast');
-    try {
-      localStorage.setItem('theme', 'high-contrast');
-    } catch (error) {
-      console.warn('Unable to save theme to localStorage:', error);
-    }
-  }
-  else if (theme === 'deuteranopia-protanopia-friendly') {
-    document.documentElement.setAttribute('data-theme', 'deuteranopia-protanopia-friendly');
-    try {
-      localStorage.setItem('theme', 'deuteranopia-protanopia-friendly');
-    } catch (error) {
-      console.warn('Unable to save theme to localStorage:', error);
-    }
-  }
-  else if (theme === 'light') {
-    document.documentElement.removeAttribute('data-theme');
-    try {
-      localStorage.setItem('theme', 'light');
-    } catch (error) {
-      console.warn('Unable to save theme to localStorage:', error);
-    }
-  }
-  else if (theme === 'system') {
-    // Remove the localStorage item first so handleSystemThemeChange will work
-    try {
-      localStorage.removeItem('theme');
-    } catch (error) {
-      console.warn('Unable to remove theme from localStorage:', error);
-    }
-    // Apply current system theme
-    applySystemTheme();
-  }
-  else {
-    console.warn('Unknown theme:', theme);
-  }
+  });
 }

@@ -5,6 +5,40 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Audiofunctions+</title>
+    <!--
+      Applies the display preferences before the first paint, otherwise the
+      light default theme flashes up on reload. Has to stay in sync with
+      src/utils/prefs.js and src/utils/theme.js, and is deliberately kept small
+      and free of module imports so it runs blocking.
+    -->
+    <script>
+      (function () {
+        var prefs = [
+          {
+            key: 'theme',
+            attr: 'data-theme',
+            values: ['system', 'light', 'dark', 'high-contrast', 'deuteranopia-protanopia-friendly'],
+            fallback: 'system'
+          },
+          { key: 'lineWidth', attr: 'data-line-width', values: ['thin', 'normal', 'thick', 'x-thick'], fallback: 'normal' },
+          { key: 'textSize', attr: 'data-text-size', values: ['sm', 'normal', 'lg', 'xl'], fallback: 'normal' }
+        ];
+        for (var i = 0; i < prefs.length; i++) {
+          var pref = prefs[i];
+          var value = pref.fallback;
+          try {
+            var stored = localStorage.getItem(pref.key);
+            if (pref.values.indexOf(stored) !== -1) value = stored;
+          } catch (e) {
+            /* localStorage blocked -- the fallback is good enough */
+          }
+          if (pref.key === 'theme' && value === 'system') {
+            value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute(pref.attr, value);
+        }
+      })();
+    </script>
     <!-- Matomo -->
     <script>
       var _paq = window._paq = window._paq || [];

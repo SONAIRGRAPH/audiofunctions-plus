@@ -1,0 +1,456 @@
+/* ============================================================================
+   THEME
+   ----------------------------------------------------------------------------
+   Every design value of the app in one place. This file holds values only --
+   no rules for concrete elements. Those live in base.css, components.css and
+   graph.css and reference the names defined here.
+
+   Sections, in this order:
+
+     1. Primitive palette   raw colors without meaning
+     2. Dimensions          base widths for strokes and rings
+     3. Preference axes     line width and text size, independent of the theme
+     4. Effective values    base value x preference factor
+     5. Themes              one block per theme
+
+   The order matters: :root, [data-theme="..."] and [data-line-width="..."] all
+   have the same specificity, so whatever comes last wins. Themes are last
+   because they may override base values from section 2.
+
+   To add a theme:
+     1. Copy a block in section 5 and adjust its values.
+     2. Add an entry to THEMES in src/utils/theme.js.
+     3. Add an icon to THEME_ICONS in PaletteActions_dyn.jsx.
+   ============================================================================ */
+
+
+/* ============================================================================
+   1. Primitive palette
+
+   Referenced only by section 5, never directly by components. A theme may
+   define additional primitives of its own (see --af-c-hc-* and --af-c-dpf-*).
+   ============================================================================ */
+:root {
+  --af-c-white: #ffffff;
+  --af-c-black: #000000;
+
+  /* SONAIRGRAPH green */
+  --af-c-green:        #32cb32;
+  --af-c-green-dark:   #275317;
+  --af-c-green-dark-2: #3d8124;
+  --af-c-green-dark-3: #2a8209;
+
+  /* Blue */
+  --af-c-blue:      #4e95d9;
+  --af-c-blue-2:    #3c84c9;
+  --af-c-blue-dark: #104862;
+
+  /* Red / indicator */
+  --af-c-red:   #e7000b;
+  --af-c-red-2: #ff0e1a;
+
+  /* Grays */
+  --af-c-gray-50:  #f3f4f6;
+  --af-c-gray-200: #d1d5dc;
+  --af-c-gray-500: #6a7282;
+  --af-c-gray-700: #364153;
+  --af-c-gray-900: #101828;
+  --af-c-gray-950: #030712;
+}
+
+
+/* ============================================================================
+   2. Dimensions -- base values
+
+   A theme may raise these (high-contrast does so for --af-ring-base). The
+   line width preference from section 3 multiplies on top independently.
+   ============================================================================ */
+:root {
+  --af-stroke-curve-base:    3px;
+  --af-stroke-point-base:    4px;
+  --af-stroke-axis-base:     2px;
+  --af-stroke-grid-base:     2px;
+  --af-stroke-tick-base:     3px;
+  --af-stroke-landmark-base: 4px;
+
+  /* Focus and hover rings */
+  --af-ring-base:   2px;
+  --af-border-base: 2px;
+
+  /* Radii */
+  --af-radius-sm:  0.25rem;
+  --af-radius-md:  0.375rem;
+  --af-radius-lg:  0.5rem;
+  --af-radius-btn: 8px;
+}
+
+
+/* ============================================================================
+   3. Preference axes
+
+   Two settings that apply independently of the theme. Up to three attributes
+   therefore sit side by side on <html>:
+
+     <html data-theme="high-contrast" data-line-width="thick" data-text-size="lg">
+
+   Only factors live here -- no colors, no absolute sizes. That way every
+   combination of theme x width x size is valid without being maintained
+   individually.
+
+   The defaults must precede the attribute blocks, otherwise they would win
+   (same specificity, later position).
+   ============================================================================ */
+:root {
+  --af-stroke-scale: 1;
+  --af-text-scale:   1;
+}
+
+/* Line width -- multiplies every --af-stroke-* and --af-ring value. */
+[data-line-width="thin"]    { --af-stroke-scale: 0.7; }
+[data-line-width="normal"]  { --af-stroke-scale: 1;   }
+[data-line-width="thick"]   { --af-stroke-scale: 1.5; }
+[data-line-width="x-thick"] { --af-stroke-scale: 2.2; }
+
+/* Text size -- scales the root font size. Since both the Tailwind text-*
+   utilities and the spacing namespace are rem based, type and spacing grow
+   together the way browser zoom does, so text never overflows its buttons or
+   dialogs. At factor 1 the rule is a no-op. */
+[data-text-size="sm"]     { --af-text-scale: 0.9;  }
+[data-text-size="normal"] { --af-text-scale: 1;    }
+[data-text-size="lg"]     { --af-text-scale: 1.15; }
+[data-text-size="xl"]     { --af-text-scale: 1.3;  }
+
+html {
+  font-size: calc(100% * var(--af-text-scale));
+}
+
+
+/* ============================================================================
+   4. Effective values
+
+   These are the only names used by components.css and graph.css, so a change
+   to the line width preference takes effect everywhere and in every theme
+   without any theme having to know about it.
+   ============================================================================ */
+:root {
+  --af-stroke-curve:    calc(var(--af-stroke-curve-base)    * var(--af-stroke-scale));
+  --af-stroke-point:    calc(var(--af-stroke-point-base)    * var(--af-stroke-scale));
+  --af-stroke-axis:     calc(var(--af-stroke-axis-base)     * var(--af-stroke-scale));
+  --af-stroke-grid:     calc(var(--af-stroke-grid-base)     * var(--af-stroke-scale));
+  --af-stroke-tick:     calc(var(--af-stroke-tick-base)     * var(--af-stroke-scale));
+  --af-stroke-landmark: calc(var(--af-stroke-landmark-base) * var(--af-stroke-scale));
+
+  --af-ring:         calc(var(--af-ring-base)   * var(--af-stroke-scale));
+  --af-border-width: calc(var(--af-border-base) * var(--af-stroke-scale));
+}
+
+
+/* ============================================================================
+   5. Themes
+
+   Each block declares the same set of tokens in the same order under the same
+   headings. A theme may omit tokens, in which case it inherits the value from
+   the light block, which doubles as the :root fallback.
+   ============================================================================ */
+
+
+/* ----------------------------------------------------------------------------
+   LIGHT  (also the :root fallback when no data-theme is set)
+   ---------------------------------------------------------------------------- */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-green);
+  --af-bg:      var(--af-c-white);
+  --af-surface: var(--af-c-gray-50);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 30%);
+  --af-danger:  #ff000b;
+
+  --af-link:       #1d4ed8;
+  --af-link-hover: #1e3a8a;
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-gray-900);
+  --af-text-title:    var(--af-c-gray-950);
+  --af-text-subtitle: var(--af-c-gray-700);
+  --af-text-label:    var(--af-c-gray-700);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-gray-200);
+  --af-border-hover:    var(--af-c-green);
+  --af-border-focus:    var(--af-c-green);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-primary), transparent 45%);
+  --af-input-bg:        var(--af-c-white);
+
+  /* -- Error states -- */
+  --af-error-text:   #dc2626;
+  --af-error-border: #ef4444;
+  --af-error-bg:     rgba(239, 68, 68, 0.1);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-gray-500);
+  --af-graph-grid: var(--af-c-gray-200);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-primary);
+  --af-curve-2: var(--af-c-blue-dark);
+  --af-curve-3: #c2410c;
+  --af-curve-4: #7e22ce;
+  --af-curve-5: #0e7490;
+  --af-curve-6: #a16207;
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-blue-dark);
+  --af-point-stroke:           var(--af-c-blue-dark);
+  --af-endpoint-closed-fill:   var(--af-c-blue-dark);
+  --af-endpoint-closed-stroke: var(--af-c-blue-dark);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-blue-dark);
+
+  --af-cursor-fill:   var(--af-c-red);
+  --af-cursor-stroke: var(--af-border-contrast);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-blue-dark);
+}
+
+
+/* ----------------------------------------------------------------------------
+   DARK
+   ---------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-green-dark-3);
+  --af-bg:      var(--af-c-gray-900);
+  --af-surface: var(--af-c-gray-950);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 45%);
+  --af-danger:  #d91018;
+
+  --af-link:       #7dd3fc;
+  --af-link-hover: #bae6fd;
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-gray-50);
+  --af-text-title:    var(--af-c-white);
+  --af-text-subtitle: var(--af-c-gray-200);
+  --af-text-label:    var(--af-c-gray-200);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-gray-500);
+  --af-border-hover:    var(--af-c-green);
+  --af-border-focus:    var(--af-c-green);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-primary), transparent 40%);
+  --af-input-bg:        var(--af-c-gray-700);
+
+  /* -- Error states -- */
+  --af-error-text:   #fca5a5;
+  --af-error-border: #ef4444;
+  --af-error-bg:     rgba(239, 68, 68, 0.2);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.7), 0 1px 3px -1px rgb(0 0 0 / 0.6);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.7), 0 2px 4px -2px rgb(0 0 0 / 0.6);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-gray-200);
+  --af-graph-grid: var(--af-c-gray-500);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-primary);
+  --af-curve-2: var(--af-c-blue-2);
+  --af-curve-3: #fb923c;
+  --af-curve-4: #c084fc;
+  --af-curve-5: #2dd4bf;
+  --af-curve-6: #facc15;
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-blue-2);
+  --af-point-stroke:           var(--af-c-blue-2);
+  --af-endpoint-closed-fill:   var(--af-c-blue-2);
+  --af-endpoint-closed-stroke: var(--af-c-blue-2);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-blue-2);
+
+  --af-cursor-fill:   var(--af-c-red-2);
+  --af-cursor-stroke: var(--af-border-contrast);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-blue-2);
+}
+
+
+/* ----------------------------------------------------------------------------
+   HIGH CONTRAST
+   ---------------------------------------------------------------------------- */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+
+  /* Theme local primitives */
+  --af-c-hc-background: #000000;
+  --af-c-hc-foreground: #ffffff;
+  --af-c-hc-accent:     #ffff00;
+  --af-c-hc-link:       #00ffff;
+  --af-c-hc-warning:    #ff8000;
+  --af-c-hc-error:      #ff0000;
+  --af-c-hc-success:    #00ff00;
+  --af-c-hc-border:     #ffffff;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-hc-accent);
+  --af-bg:      var(--af-c-hc-background);
+  --af-surface: #0a0a0a;
+  --af-overlay: rgba(255, 255, 255, 0.7);
+  --af-danger:  #d91018;
+
+  --af-link:       var(--af-c-hc-link);
+  --af-link-hover: var(--af-c-hc-accent);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-hc-foreground);
+  --af-text-title:    var(--af-c-hc-foreground);
+  --af-text-subtitle: var(--af-c-hc-foreground);
+  --af-text-label:    var(--af-c-hc-foreground);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-hc-border);
+  --af-border-hover:    var(--af-c-hc-accent);
+  --af-border-focus:    var(--af-c-hc-accent);
+  --af-border-contrast: var(--af-c-hc-link);
+  --af-hover-fill:      var(--af-c-hc-accent);
+  --af-input-bg:        var(--af-c-hc-background);
+
+  /* -- Error states -- */
+  --af-error-text:   var(--af-c-hc-error);
+  --af-error-border: var(--af-c-hc-error);
+  --af-error-bg:     var(--af-c-hc-background);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 0 0 2px var(--af-c-hc-border);
+  --af-shadow:    0 0 0 2px var(--af-c-hc-border);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-hc-foreground);
+  --af-graph-grid: rgba(255, 255, 255, 0.5);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-hc-accent);
+  --af-curve-2: var(--af-c-hc-link);
+  --af-curve-3: var(--af-c-hc-warning);
+  --af-curve-4: var(--af-c-hc-success);
+  --af-curve-5: #ff69b4;
+  --af-curve-6: var(--af-c-hc-foreground);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-hc-link);
+  --af-point-stroke:           var(--af-c-hc-link);
+  --af-endpoint-closed-fill:   var(--af-c-hc-link);
+  --af-endpoint-closed-stroke: var(--af-c-hc-link);
+  --af-endpoint-open-fill:     var(--af-c-hc-success);
+  --af-endpoint-open-stroke:   var(--af-c-hc-success);
+
+  --af-cursor-fill:   var(--af-c-hc-error);
+  --af-cursor-stroke: var(--af-c-hc-error);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-hc-link);
+
+  /* -- Dimensions: base values only, the user scale still applies on top -- */
+  --af-ring-base: 5px;
+}
+
+
+/* ----------------------------------------------------------------------------
+   DEUTERANOPIA / PROTANOPIA FRIENDLY
+   Avoids red-green distinctions.
+   ---------------------------------------------------------------------------- */
+[data-theme="deuteranopia-protanopia-friendly"] {
+  color-scheme: light;
+
+  /* Theme local primitives */
+  --af-c-dpf-background: #f8f9fa;
+  --af-c-dpf-foreground: #2c3e50;
+  --af-c-dpf-primary:    #3498db; /* Blue -- easy to tell apart */
+  --af-c-dpf-secondary:  #f39c12; /* Orange -- strong contrast against blue */
+  --af-c-dpf-accent:     #9b59b6; /* Purple -- distinct from both */
+  --af-c-dpf-warning:    #f39c12;
+  --af-c-dpf-error:      #e74c3c;
+  --af-c-dpf-border:     #bdc3c7;
+  --af-c-dpf-gray:       #95a5a6;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-dpf-primary);
+  --af-bg:      var(--af-c-white);
+  --af-surface: var(--af-c-gray-50);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 30%);
+  --af-danger:  var(--af-c-dpf-error);
+
+  --af-link:       var(--af-c-dpf-primary);
+  --af-link-hover: var(--af-c-dpf-accent);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-gray-900);
+  --af-text-title:    var(--af-c-gray-950);
+  --af-text-subtitle: var(--af-c-gray-700);
+  --af-text-label:    var(--af-c-gray-700);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-dpf-border);
+  --af-border-hover:    var(--af-c-dpf-primary);
+  --af-border-focus:    var(--af-c-dpf-primary);
+  --af-border-contrast: var(--af-c-dpf-accent);
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-dpf-primary), transparent 45%);
+  --af-input-bg:        var(--af-c-white);
+
+  /* -- Error states -- */
+  --af-error-text:   #b03a2e;
+  --af-error-border: var(--af-c-dpf-error);
+  --af-error-bg:     rgba(231, 76, 60, 0.1);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-dpf-gray);
+  --af-graph-grid: var(--af-c-dpf-border);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-dpf-primary);
+  --af-curve-2: var(--af-c-dpf-secondary);
+  --af-curve-3: var(--af-c-dpf-accent);
+  --af-curve-4: var(--af-c-dpf-foreground);
+  --af-curve-5: #16a085;
+  --af-curve-6: #7f8c8d;
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-dpf-accent);
+  --af-point-stroke:           var(--af-c-dpf-accent);
+  --af-endpoint-closed-fill:   var(--af-c-dpf-accent);
+  --af-endpoint-closed-stroke: var(--af-c-dpf-accent);
+  --af-endpoint-open-fill:     var(--af-c-dpf-background);
+  --af-endpoint-open-stroke:   var(--af-c-dpf-accent);
+
+  --af-cursor-fill:   var(--af-c-dpf-warning);
+  --af-cursor-stroke: var(--af-c-dpf-warning);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-dpf-accent);
+}
