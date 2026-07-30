@@ -15,6 +15,7 @@ import {
 import audioSampleManager from "../../utils/audioSamples";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
 import { horizontalEdge, resolveBorderEvent } from "../../utils/boundaryGeometry";
+import { landmarkWindows, resolveLandmarkHit, LANDMARK_COOLDOWN_MS } from "../../utils/landmarkGeometry";
 
 const GraphSonification = () => {
   const {
@@ -890,7 +891,9 @@ const GraphSonification = () => {
 
     if (!cursorCoords || cursorCoords.length === 0) return;
 
-    // Get active functions
+    // X-crossing is zoom-proof; the match window is only used on the first
+    // observation of a function (no previous x yet).
+    const { matchX } = landmarkWindows(graphBounds, stepSize);
     const activeFunctions = getActiveFunctions(functionDefinitions);
 
     activeFunctions.forEach(func => {
@@ -899,85 +902,37 @@ const GraphSonification = () => {
 
       if (functionIndex === -1) return;
 
-      // Get landmarks for this function
       const landmarks = getLandmarksN(functionDefinitions, functionIndex);
       if (!landmarks || landmarks.length === 0) return;
 
-      // Find cursor position for this function
       const cursorCoord = cursorCoords.find(coord => coord.functionId === functionId);
       if (!cursorCoord) return;
 
       const cursorX = parseFloat(cursorCoord.x);
       const cursorY = parseFloat(cursorCoord.y);
+      if (!Number.isFinite(cursorX)) return;
 
-      // Get previous cursor position for this function
       const prevPosition = prevLandmarkPositionsRef.current.get(functionId);
+      const prevX = prevPosition ? prevPosition.x : null;
 
-      // Check each landmark for crossing detection
       landmarks.forEach((landmark, landmarkIndex) => {
         const landmarkX = parseFloat(landmark.x);
-        const landmarkY = parseFloat(landmark.y);
-
-        // Create landmark key for tracking
         const landmarkKey = `${functionId}_landmark_${landmarkIndex}`;
+        const { hit } = resolveLandmarkHit({ prevX, cursorX, landmarkX, matchX });
 
-        let shouldTriggerEarcon = false;
+        if (!hit || isEditLandmarkDialogOpen) return;
 
-        if (prevPosition) {
-          const prevX = prevPosition.x;
-          const prevY = prevPosition.y;
+        const lastTriggered = boundaryTriggeredRef.current.get(landmarkKey);
+        const now = Date.now();
 
-          // Check if cursor crossed the landmark position
-          // We consider it crossed if the cursor moved from one side of the landmark to the other
-          const prevDistance = Math.sqrt(
-            Math.pow(prevX - landmarkX, 2) + Math.pow(prevY - landmarkY, 2)
-          );
-          const currentDistance = Math.sqrt(
-            Math.pow(cursorX - landmarkX, 2) + Math.pow(cursorY - landmarkY, 2)
-          );
-
-          // Define a small threshold for "reaching" the landmark (much smaller than before)
-          const reachThreshold = 0.05; // Very small threshold
-
-          // Trigger if we're very close to the landmark and weren't close before
-          if (currentDistance <= reachThreshold && prevDistance > reachThreshold) {
-            shouldTriggerEarcon = true;
-          }
-        } else {
-          // First time tracking this function - check if we're already at a landmark
-          const distance = Math.sqrt(
-            Math.pow(cursorX - landmarkX, 2) + Math.pow(cursorY - landmarkY, 2)
-          );
-
-          if (distance <= 0.05) { // Very small threshold for initial detection
-            shouldTriggerEarcon = true;
-          }
-        }
-
-        if (shouldTriggerEarcon) {
-          // Don't play earcon if edit-landmark dialog is open
-          if (isEditLandmarkDialogOpen) {
-            return;
-          }
-
-          // Check if we haven't recently triggered this landmark to avoid spam
-          const lastTriggered = boundaryTriggeredRef.current.get(landmarkKey);
-          const now = Date.now();
-
-          if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown for landmarks
-            // Play landmark earcon
-            const shape = landmark.shape || landmark.appearance || "triangle";
-            landmarkEarconManager.playLandmarkEarcon(landmark, {
-              pan: (cursorX - graphBounds.xMin) / (graphBounds.xMax - graphBounds.xMin) * 2 - 1 // -1 to 1
-            });
-
-            boundaryTriggeredRef.current.set(landmarkKey, now);
-            // console.log(`Landmark intersection: ${landmark.label || `Landmark ${landmarkIndex + 1}`} (${shape}) at x=${cursorX.toFixed(2)}, y=${cursorY.toFixed(2)}`);
-          }
+        if (!lastTriggered || (now - lastTriggered) > LANDMARK_COOLDOWN_MS) {
+          landmarkEarconManager.playLandmarkEarcon(landmark, {
+            pan: (cursorX - graphBounds.xMin) / (graphBounds.xMax - graphBounds.xMin) * 2 - 1 // -1 to 1
+          });
+          boundaryTriggeredRef.current.set(landmarkKey, now);
         }
       });
 
-      // Update previous position for this function
       prevLandmarkPositionsRef.current.set(functionId, { x: cursorX, y: cursorY });
     });
   };

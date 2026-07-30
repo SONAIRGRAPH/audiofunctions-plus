@@ -309,7 +309,9 @@ export default function KeyboardHandler() {
                     setFunctionDefinitions,
                     announce,
                     showInfoToast,
-                    openDialog
+                    openDialog,
+                    graphBounds,
+                    stepSize
                 );
                 return;
             }

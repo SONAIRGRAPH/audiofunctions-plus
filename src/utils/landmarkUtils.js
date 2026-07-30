@@ -1,5 +1,6 @@
 import { getActiveFunctions, getLandmarksN, addLandmarkWithValidation } from './graphObjectOperations';
 import landmarkEarconManager from './landmarkEarcons';
+import { isNearLandmark, landmarkWindows } from './landmarkGeometry';
 
 /**
  * Calculate screen position from graph coordinates
@@ -120,16 +121,21 @@ export function validateActiveFunction(functionDefinitions, cursorCoords) {
 }
 
 /**
- * Find landmark at position with tolerance
+ * Find landmark at position with a zoom-aware tolerance.
  * @param {Array} landmarks - Landmarks array
  * @param {number} x - X coordinate
  * @param {number} y - Y coordinate
- * @param {number} tolerance - Position tolerance (default: 0.01)
+ * @param {Object} [bounds] - Graph bounds; when omitted a tiny absolute floor is used
+ * @param {number} [stepSize=0] - Navigation step size (widens the X window)
  * @returns {Object} Result with found landmark index or -1
  */
-export function findLandmarkAtPosition(landmarks, x, y, tolerance = 0.01) {
+export function findLandmarkAtPosition(landmarks, x, y, bounds = null, stepSize = 0) {
+  const windows = bounds
+    ? landmarkWindows(bounds, stepSize)
+    : { matchX: 0.01, matchY: 0.01 };
+
   const existingLandmarkIndex = landmarks.findIndex(landmark =>
-    Math.abs(landmark.x - x) < tolerance && Math.abs(landmark.y - y) < tolerance
+    isNearLandmark(landmark, x, y, windows)
   );
 
   return {
@@ -176,7 +182,9 @@ export function addLandmarkAtCursorPosition(
   setFunctionDefinitions,
   announce,
   showInfoToast,
-  openDialog
+  openDialog,
+  graphBounds = null,
+  stepSize = 0
 ) {
   // Validate active function and cursor
   const validation = validateActiveFunction(functionDefinitions, cursorCoords);
@@ -185,7 +193,7 @@ export function addLandmarkAtCursorPosition(
     return { success: false, message: validation.message };
   }
 
-  const { activeFunction, activeFunctionIndex, cursorCoord } = validation;
+  const { activeFunctionIndex, cursorCoord } = validation;
   // Cursor coordinates carry full precision for border detection; landmarks are
   // authored data and stay at the two decimals users see and export.
   const x = Number(parseFloat(cursorCoord.x).toFixed(2));
@@ -193,7 +201,7 @@ export function addLandmarkAtCursorPosition(
 
   // Check for existing landmark at position
   const currentLandmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
-  const existingResult = findLandmarkAtPosition(currentLandmarks, x, y);
+  const existingResult = findLandmarkAtPosition(currentLandmarks, x, y, graphBounds, stepSize);
 
   if (existingResult.found) {
     handleExistingLandmarkFound(
@@ -207,7 +215,10 @@ export function addLandmarkAtCursorPosition(
   }
 
   // Create new landmark
-  const result = addLandmarkWithValidation(functionDefinitions, activeFunctionIndex, x, y);
+  const result = addLandmarkWithValidation(functionDefinitions, activeFunctionIndex, x, y, {
+    bounds: graphBounds,
+    stepSize
+  });
 
   if (!result.success) {
     announce(result.message);
