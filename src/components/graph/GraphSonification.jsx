@@ -14,6 +14,7 @@ import {
 } from "../../utils/graphObjectOperations";
 import audioSampleManager from "../../utils/audioSamples";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
+import { horizontalEdge, resolveBorderEvent } from "../../utils/boundaryGeometry";
 
 const GraphSonification = () => {
   const {
@@ -33,16 +34,13 @@ const GraphSonification = () => {
   const prevXSignRef = useRef(new Map()); // Track previous x coordinate signs for y-axis intersection
   const boundaryTriggeredRef = useRef(new Map()); // Track if boundary event was recently triggered to avoid spam
   const yAxisTriggeredRef = useRef(new Map()); // Track if y-axis intersection was recently triggered
-  const prevBoundaryStateRef = useRef(new Map()); // Track previous boundary state for each function
   const prevLandmarkPositionsRef = useRef(new Map()); // Track previous cursor positions for landmark crossing detection
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const isAtBoundaryRef = useRef(false); // Track if cursor is at a boundary
   const masterGainRef = useRef(null); // Reference to master gain node for discrete batch sonification control
-  const chartBorderLastPlayedRef = useRef(0); // Global cooldown for chart border earcon
-  const mouseBoundaryStateRef = useRef({ left: false, right: false, bottom: false, top: false }); // Aggregated mouse boundary state
-  const lastMouseXRef = useRef(null); // Track last mouse X for direction in mouse exploration
+  const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
+  const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
   const { getInstrumentByName } = useInstruments();
   const { isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
@@ -51,7 +49,6 @@ const GraphSonification = () => {
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
   const [forceRecreate, setForceRecreate] = useState(false); // State to force recreation of sonification pipeline
-  const batchTickCountRef = useRef(0); // Track tick count since batch exploration started
   const batchResetDoneRef = useRef(false); // Track if batch reset has been done
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
@@ -246,7 +243,6 @@ const GraphSonification = () => {
       lastPitchClassesRef.current.clear();
 
       // Reset batch exploration tracking
-      batchTickCountRef.current = 0;
       batchResetDoneRef.current = false;
 
       // Reset the flag
@@ -375,13 +371,6 @@ const GraphSonification = () => {
       const functionId = key.split('_')[0]; // Extract functionId from boundary key
       if (!currentFunctionIds.has(functionId)) {
         boundaryTriggeredRef.current.delete(key);
-      }
-    });
-
-    // Clean up prevBoundaryStateRef
-    Array.from(prevBoundaryStateRef.current.keys()).forEach(functionId => {
-      if (!currentFunctionIds.has(functionId)) {
-        prevBoundaryStateRef.current.delete(functionId);
       }
     });
 
@@ -573,16 +562,19 @@ const GraphSonification = () => {
         // Reset y-axis intersection tracking for batch mode
         prevXSignRef.current.clear();
         yAxisTriggeredRef.current.clear();
-        batchTickCountRef.current = 0;
         batchResetDoneRef.current = true;
         // Reset batch start earcon tracking
         batchStartEarconPlayedRef.current = false;
         wasAtLeftBoundaryRef.current = false;
+        // Playback starts parked on one edge; pre-seed it so the border earcon is not
+        // fired for a position the user did not navigate to. Leaving that edge is
+        // announced by chart_border_start instead.
+        borderEdgeRef.current = PlayFunction.speed > 0 ? "left" : "right";
+        chartBorderLastPlayedRef.current = Date.now();
       }
     } else {
       // Reset flags when not in batch mode or when batch stops
       batchResetDoneRef.current = false;
-      batchTickCountRef.current = 0;
       batchStartEarconPlayedRef.current = false;
       wasAtLeftBoundaryRef.current = false;
     }
@@ -626,36 +618,15 @@ const GraphSonification = () => {
       return !isNaN(y) && isFinite(y) && y < 0;
     });
 
-    // Check if any cursor is at a boundary (we need to check this before processing individual coordinates)
-    let isAnyAtBoundary = false;
-    let isAtLeftBoundaryNow = false;
-    for (const coord of cursorCoords) {
-      const x = parseFloat(coord.x);
-      const y = parseFloat(coord.y);
-
-      // Calculate tolerance based on current graph bounds to be more robust with zoom
-      const xRange = graphBounds.xMax - graphBounds.xMin;
-      const yRange = graphBounds.yMax - graphBounds.yMin;
-      const tolerance = Math.max(0.02, Math.min(xRange, yRange) * 0.001); // Adaptive tolerance
-
-      const isAtLeftBoundary = Math.abs(x - (graphBounds.xMin + tolerance)) < tolerance * 0.1;
-      const isAtRightBoundary = Math.abs(x - (graphBounds.xMax - tolerance)) < tolerance * 0.1;
-      const isAtBottomBoundary = Math.abs(y - (graphBounds.yMin + tolerance)) < tolerance * 0.1;
-      const isAtTopBoundary = Math.abs(y - (graphBounds.yMax - tolerance)) < tolerance * 0.1;
-
-      if (isAtLeftBoundary) {
-        isAtLeftBoundaryNow = true;
-      }
-
-      if (isAtLeftBoundary || isAtRightBoundary || isAtBottomBoundary || isAtTopBoundary) {
-        isAnyAtBoundary = true;
-        break;
-      }
-    }
+    // Horizontal borders depend only on x, which every cursor shares, so they are
+    // resolved once per frame rather than once per function.
+    const borderEdge = processHorizontalBorder(cursorCoords);
+    const isAtBorder = borderEdge !== null;
 
     // Check if batch sonification is leaving the left boundary (for chart_border_start earcon)
     if (explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play" &&
         cursorCoords && cursorCoords.length > 0) {
+      const isAtLeftBoundaryNow = borderEdge === "left";
       // If we were at the left boundary before and now we're not, play the start earcon
       if (wasAtLeftBoundaryRef.current && !isAtLeftBoundaryNow && !batchStartEarconPlayedRef.current) {
         // Only play if moving forward (positive speed) - leaving left boundary going right
@@ -673,7 +644,7 @@ const GraphSonification = () => {
     checkLandmarkIntersections(cursorCoords);
 
     // Only start pink noise if there's a negative y value AND not at a boundary
-    if (hasNegativeY && !isAnyAtBoundary) {
+    if (hasNegativeY && !isAtBorder) {
       startPinkNoise();
     } else {
       stopPinkNoise();
@@ -726,83 +697,12 @@ const GraphSonification = () => {
       }
     }
 
-    // Mouse-specific aggregated chart boundary earcon handling
-    if (explorationMode === "mouse" && cursorCoords.length > 0) {
-      // Approximate mouse X from the first cursor (all share same X in exploration)
-      const currentMouseX = parseFloat(cursorCoords[0].x);
-      let deltaX = 0;
-      if (!isNaN(currentMouseX)) {
-        if (lastMouseXRef.current !== null && !isNaN(lastMouseXRef.current)) {
-          deltaX = currentMouseX - lastMouseXRef.current;
-        }
-        lastMouseXRef.current = currentMouseX;
-      }
-
-      const xRange = graphBounds.xMax - graphBounds.xMin;
-      const yRange = graphBounds.yMax - graphBounds.yMin;
-      const xWindow = xRange * 0.01;
-      const yWindow = yRange * 0.01;
-
-      let leftAny = false;
-      let rightAny = false;
-      let bottomAny = false;
-      let topAny = false;
-
-      cursorCoords.forEach(coord => {
-        const x = parseFloat(coord.x);
-        const y = parseFloat(coord.y);
-        if (isNaN(x) || isNaN(y)) return;
-
-        if (x <= graphBounds.xMin + xWindow) leftAny = true;
-        if (x >= graphBounds.xMax - xWindow) rightAny = true;
-        if (y <= graphBounds.yMin + yWindow) bottomAny = true;
-        if (y >= graphBounds.yMax - yWindow) topAny = true;
-      });
-
-      const prevMouseState = mouseBoundaryStateRef.current;
-      const now = Date.now();
-      const globalLastPlayed = chartBorderLastPlayedRef.current;
-      const globalCooldownActive = globalLastPlayed && (now - globalLastPlayed) <= 200;
-
-      let shouldPlay = false;
-
-      if (!globalCooldownActive) {
-        // For left boundary, only play when movement is towards the left (deltaX < 0)
-        if (leftAny && !prevMouseState.left && deltaX < 0) {
-          shouldPlay = true;
-        }
-        // For right boundary, only play when movement is towards the right (deltaX > 0)
-        else if (rightAny && !prevMouseState.right && deltaX > 0) {
-          shouldPlay = true;
-        } else if (bottomAny && !prevMouseState.bottom) {
-          shouldPlay = true;
-        } else if (topAny && !prevMouseState.top) {
-          shouldPlay = true;
-        }
-      }
-
-      if (shouldPlay) {
-        playAudioSample("chart_border", { volume: -20 });
-        chartBorderLastPlayedRef.current = now;
-      }
-
-      mouseBoundaryStateRef.current = {
-        left: leftAny,
-        right: rightAny,
-        bottom: bottomAny,
-        top: topAny
-      };
-    } else {
-      lastMouseXRef.current = null;
-      mouseBoundaryStateRef.current = { left: false, right: false, bottom: false, top: false };
-    }
-
     // Process each cursor coordinate
-    cursorCoords.forEach(async (coord) => {
+    cursorCoords.forEach((coord) => {
       const functionId = coord.functionId;
       const x = parseFloat(coord.x);
       const y = parseFloat(coord.y);
-      const mouseY = coord.mouseY ? parseFloat(coord.mouseY) : null;
+      const mouseY = coord.mouseY === null || coord.mouseY === undefined ? null : parseFloat(coord.mouseY);
       const pan = calculatePan(x);
 
       // Handle tick sound with panning - only when Shift is pressed, regardless of exploration mode
@@ -816,32 +716,15 @@ const GraphSonification = () => {
           }
           tickSynthRef.current?.triggerAttackRelease("C6", "16n");
           lastTickIndexRef.current = n;
-
-          // Increment tick count for batch exploration
-          if (explorationMode === "batch") {
-            batchTickCountRef.current++;
-          }
         }
       }
 
-      // Check for special events first (this sets the boundary state)
-      // Skip chart boundary detection for the first 5 ticks of batch exploration
-      // but always allow y-axis intersection detection as it's important for navigation
-      const shouldSkipChartBoundaryDetection = explorationMode === "batch" && batchTickCountRef.current <= 5;
+      checkYAxisIntersectionEvents(functionId, coord);
+      checkDiscontinuityEvents(functionId, coord);
 
-      // Always check y-axis intersection events (important for navigation)
-      await checkYAxisIntersectionEvents(functionId, coord);
-
-      if (!shouldSkipChartBoundaryDetection) {
-        await checkChartBoundaryEvents(functionId, coord);
-        await checkDiscontinuityEvents(functionId, coord);
-      } else {
-        // Reset boundary state during skipped detection to prevent false positives
-        isAtBoundaryRef.current = false;
-      }
-
-      // If at boundary, stop sonification and return
-      if (isAtBoundaryRef.current) {
+      // The cursor cannot advance past a horizontal border, so hold the tone silent
+      // there rather than sustaining a pitch the user can no longer change
+      if (isAtBorder) {
         stopTone(functionId);
         return;
       }
@@ -876,95 +759,54 @@ const GraphSonification = () => {
     });
   }, [cursorCoords, isAudioEnabled, isEditFunctionDialogOpen, isEditLandmarkDialogOpen, functionDefinitions, graphBounds, stepSize, explorationMode]);
 
-  // Event detection functions
-  const checkChartBoundaryEvents = async (functionId, coords) => {
-    const x = parseFloat(coords.x);
-    const y = parseFloat(coords.y);
+  /**
+   * Resolve the left/right chart border once per frame and sound the earcon when it
+   * is reached, or repeatedly while the user keeps trying to move past it. All
+   * cursors share the same x, so a single shared state is enough.
+   *
+   * Vertical exits are not treated as borders: a function value leaving the view is
+   * reported by the no_y earcon instead.
+   *
+   * Returns the border currently occupied, or null.
+   */
+  const processHorizontalBorder = (coords) => {
+    const sample = coords.find(coord => Number.isFinite(parseFloat(coord.x)));
+
+    if (!sample) {
+      borderEdgeRef.current = null;
+      return null;
+    }
+
+    const x = parseFloat(sample.x);
+    // Whether the navigation actually tried to leave the chart. This is reported by
+    // the clamp, so it needs no tolerance and holds at every zoom level. A clamped
+    // cursor always lands inside the enter window, so a blocked attempt that does not
+    // agree with the position below is stale (the view moved, not the cursor) and is
+    // ignored by resolveBorderEvent.
+    const blocked = sample.blockedEdge ?? null;
+    const previousEdge = borderEdgeRef.current;
+    const edge = horizontalEdge(x, graphBounds, previousEdge);
     const now = Date.now();
-    const globalLastPlayed = chartBorderLastPlayedRef.current;
-    const globalCooldownActive = globalLastPlayed && (now - globalLastPlayed) <= 200; // small global cooldown
 
-    // Calculate base tolerance based on current graph bounds to be more robust with zoom
-    const xRange = graphBounds.xMax - graphBounds.xMin;
-    const yRange = graphBounds.yMax - graphBounds.yMin;
-    const baseTolerance = Math.max(0.02, Math.min(xRange, yRange) * 0.001); // Adaptive tolerance
-
-    let isAtLeftBoundary = false;
-    let isAtRightBoundary = false;
-    let isAtBottomBoundary = false;
-    let isAtTopBoundary = false;
-
-    if (explorationMode === "mouse") {
-      // For mouse navigation, use a wider 1% threshold of the visible range
-      const xWindow = xRange * 0.01;
-      const yWindow = yRange * 0.01;
-
-      isAtLeftBoundary = x <= graphBounds.xMin + xWindow;
-      isAtRightBoundary = x >= graphBounds.xMax - xWindow;
-      isAtBottomBoundary = y <= graphBounds.yMin + yWindow;
-      isAtTopBoundary = y >= graphBounds.yMax - yWindow;
-    } else {
-      // For keyboard / batch navigation keep the previous, tighter behaviour
-      isAtLeftBoundary = Math.abs(x - (graphBounds.xMin + baseTolerance)) < baseTolerance * 0.1;
-      isAtRightBoundary = Math.abs(x - (graphBounds.xMax - baseTolerance)) < baseTolerance * 0.1;
-      isAtBottomBoundary = Math.abs(y - (graphBounds.yMin + baseTolerance)) < baseTolerance * 0.1;
-      isAtTopBoundary = Math.abs(y - (graphBounds.yMax - baseTolerance)) < baseTolerance * 0.1;
-    }
-
-    // Get previous boundary state for this function
-    const prevState = prevBoundaryStateRef.current.get(functionId) || {
-      left: false, right: false, bottom: false, top: false
-    };
-
-    // Create a boundary key for this specific boundary and detect new entry
-    let boundaryKey = null;
-    let justEnteredBoundary = false;
-    if (isAtLeftBoundary) {
-      boundaryKey = `${functionId}_left`;
-      justEnteredBoundary = !prevState.left;
-    } else if (isAtRightBoundary) {
-      boundaryKey = `${functionId}_right`;
-      justEnteredBoundary = !prevState.right;
-    } else if (isAtBottomBoundary) {
-      boundaryKey = `${functionId}_bottom`;
-      justEnteredBoundary = !prevState.bottom;
-    } else if (isAtTopBoundary) {
-      boundaryKey = `${functionId}_top`;
-      justEnteredBoundary = !prevState.top;
-    }
-
-    // console.log(`Boundary check for function ${functionId}: boundaryKey=${boundaryKey}, x=${x}, y=${y}, graphBounds=${JSON.stringify(graphBounds)}`);
-
-    if (boundaryKey) {
-      // Set boundary state to true when at boundary
-      isAtBoundaryRef.current = true;
-
-      if (explorationMode !== "mouse") {
-        // Keyboard / batch: keep cooldown-based behaviour
-        const lastTriggered = boundaryTriggeredRef.current.get(boundaryKey);
-
-        if ((!lastTriggered || (now - lastTriggered) > 200) && !globalCooldownActive) { // 200ms cooldown + global cooldown
-          await playAudioSample("chart_border", { volume: -20 });
-          boundaryTriggeredRef.current.set(boundaryKey, now);
-          chartBorderLastPlayedRef.current = now;
-          // console.log(`Chart boundary event triggered for function ${functionId} at boundary: ${boundaryKey}`);
-        }
-      }
-    } else {
-      // Clear boundary state when not at boundary
-      isAtBoundaryRef.current = false;
-    }
-
-    // Update the previous boundary state
-    prevBoundaryStateRef.current.set(functionId, {
-      left: isAtLeftBoundary,
-      right: isAtRightBoundary,
-      bottom: isAtBottomBoundary,
-      top: isAtTopBoundary
+    const { play } = resolveBorderEvent({
+      previousEdge,
+      edge,
+      blocked,
+      now,
+      lastPlayedAt: chartBorderLastPlayedRef.current
     });
+
+    borderEdgeRef.current = edge;
+
+    if (play) {
+      playAudioSample("chart_border", { volume: -20 });
+      chartBorderLastPlayedRef.current = now;
+    }
+
+    return edge;
   };
 
-  const checkYAxisIntersectionEvents = async (functionId, coords) => {
+  const checkYAxisIntersectionEvents = (functionId, coords) => {
     const x = parseFloat(coords.x);
     const prevXSign = prevXSignRef.current.get(functionId);
     const currentXSign = Math.sign(x);
@@ -991,7 +833,7 @@ const GraphSonification = () => {
       const now = Date.now();
 
       if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown
-        await playAudioSample("y_axis_intersection", { volume: -12 });
+        playAudioSample("y_axis_intersection", { volume: -12 });
         yAxisTriggeredRef.current.set(functionId, now);
         // console.log(`Y-axis intersection event triggered for function ${functionId} at x=${x} (batch mode: ${explorationMode === "batch"})`);
       }
@@ -1001,7 +843,7 @@ const GraphSonification = () => {
     prevXSignRef.current.set(functionId, currentXSign);
   };
 
-  const checkDiscontinuityEvents = async (functionId, coords) => {
+  const checkDiscontinuityEvents = (functionId, coords) => {
     // Handle both numeric and string representations of y
     let y;
     if (typeof coords.y === 'string') {
@@ -1029,7 +871,7 @@ const GraphSonification = () => {
         stopTone(functionId);
         // console.log(`Stopping tone for function ${functionId} due to ${isInvalid ? 'discontinuity' : 'out of bounds'} at x=${coords.x}, y=${coords.y}`);
 
-        await playAudioSample("no_y", { volume: -35 });
+        playAudioSample("no_y", { volume: -35 });
         boundaryTriggeredRef.current.set(`${functionId}_discontinuity`, now);
         // console.log(`${isInvalid ? 'Discontinuity' : 'Out of bounds'} event triggered for function ${functionId} at x=${coords.x}, y=${coords.y}`);
       }

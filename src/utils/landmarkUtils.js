@@ -186,8 +186,10 @@ export function addLandmarkAtCursorPosition(
   }
 
   const { activeFunction, activeFunctionIndex, cursorCoord } = validation;
-  const x = parseFloat(cursorCoord.x);
-  const y = parseFloat(cursorCoord.y);
+  // Cursor coordinates carry full precision for border detection; landmarks are
+  // authored data and stay at the two decimals users see and export.
+  const x = Number(parseFloat(cursorCoord.x).toFixed(2));
+  const y = Number(parseFloat(cursorCoord.y).toFixed(2));
 
   // Check for existing landmark at position
   const currentLandmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
