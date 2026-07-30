@@ -9,6 +9,7 @@ import GraphSonification from './components/graph/GraphSonification';
 import { DialogProvider, useDialog } from './context/DialogContext';
 import Header from './components/ui/Header';
 import { InstrumentsProvider } from './context/InstrumentsContext';
+import { MixerProvider } from './context/MixerContext';
 import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { PaletteActions } from './components/ui/PaletteActions_dyn';
 import { AnnouncementProvider } from './context/AnnouncementContext';
@@ -17,16 +18,18 @@ import { InfoToastProvider } from './context/InfoToastContext';
 function App() {
   return (
     <InstrumentsProvider>
-      <GraphContextProvider>
-        <AnnouncementProvider>
-          <InfoToastProvider>
-            <DialogProvider>
-              <KeyboardHandler />
-              <AppContent />
-            </DialogProvider>
-          </InfoToastProvider>
-        </AnnouncementProvider>
-      </GraphContextProvider>
+      <MixerProvider>
+        <GraphContextProvider>
+          <AnnouncementProvider>
+            <InfoToastProvider>
+              <DialogProvider>
+                <KeyboardHandler />
+                <AppContent />
+              </DialogProvider>
+            </InfoToastProvider>
+          </AnnouncementProvider>
+        </GraphContextProvider>
+      </MixerProvider>
     </InstrumentsProvider>
   );
 }

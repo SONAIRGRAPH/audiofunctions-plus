@@ -16,6 +16,7 @@ import audioSampleManager from "../../utils/audioSamples";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
 import { horizontalEdge, resolveBorderEvent } from "../../utils/boundaryGeometry";
 import { landmarkWindows, resolveLandmarkHit, LANDMARK_COOLDOWN_MS } from "../../utils/landmarkGeometry";
+import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../../audio/mixerBus";
 
 const GraphSonification = () => {
   const {
@@ -55,6 +56,17 @@ const GraphSonification = () => {
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
   const wasAtLeftBoundaryRef = useRef(false); // Track if cursor was at left boundary in previous tick
 
+  // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
+  const connectInstrumentChannelToMixer = (functionId, channel, label) => {
+    const mixerGain = mixerBus.ensureChannel(
+      MIXER_CHANNELS.instrument(functionId),
+      MIXER_GROUPS.instruments,
+      label || `Instrument ${functionId}`
+    );
+    channel.disconnect();
+    channel.connect(mixerGain);
+  };
+
   // Initialize tick synth
   useEffect(() => {
     if (!tickSynthRef.current) {
@@ -76,12 +88,12 @@ const GraphSonification = () => {
         volume: 0
       });
 
-      // Connect to master gain if available, otherwise to destination
-      if (masterGainRef.current) {
-        tickChannelRef.current.connect(masterGainRef.current);
-      } else {
-        tickChannelRef.current.toDestination();
-      }
+      const tickMixerGain = mixerBus.ensureChannel(
+        MIXER_CHANNELS.tick,
+        MIXER_GROUPS.earcons,
+        "Tick"
+      );
+      tickChannelRef.current.connect(tickMixerGain);
 
       // Connect tick synth to its channel
       tickSynthRef.current.connect(tickChannelRef.current);
@@ -97,14 +109,21 @@ const GraphSonification = () => {
         tickChannelRef.current.dispose();
         tickChannelRef.current = null;
       }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.tick);
     };
   }, []);
 
   // Initialize pink noise synthesizer
   useEffect(() => {
     if (!pinkNoiseRef.current) {
-      pinkNoiseRef.current = new Tone.Noise("pink").toDestination();
+      pinkNoiseRef.current = new Tone.Noise("pink");
       pinkNoiseRef.current.volume.value = -36; // dB - low volume background sound
+      const noiseMixerGain = mixerBus.ensureChannel(
+        MIXER_CHANNELS.pinkNoise,
+        MIXER_GROUPS.noise,
+        "Pink noise"
+      );
+      pinkNoiseRef.current.connect(noiseMixerGain);
     }
 
     return () => {
@@ -112,24 +131,43 @@ const GraphSonification = () => {
         pinkNoiseRef.current.dispose();
         pinkNoiseRef.current = null;
       }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.pinkNoise);
     };
   }, []);
 
-  // Initialize master gain node for discrete batch sonification control
+  // Initialize master gain + mixer group buses for discrete batch sonification control
   useEffect(() => {
     if (!masterGainRef.current) {
       masterGainRef.current = new Tone.Gain(1).toDestination();
+      // Group buses feed master gain; per-channel mixer gains feed their group
+      mixerBus.initialize(masterGainRef.current);
+      audioSampleManager.reconnectAllToMixer();
 
-      // Reconnect all existing channels to master gain
-      channelsRef.current.forEach((channel) => {
-        channel.disconnect();
-        channel.connect(masterGainRef.current);
+      // Reconnect existing instrument channels through their mixer gains
+      channelsRef.current.forEach((channel, functionId) => {
+        connectInstrumentChannelToMixer(functionId, channel);
       });
 
       // Reconnect tick channel if it exists
       if (tickChannelRef.current) {
+        const tickMixerGain = mixerBus.ensureChannel(
+          MIXER_CHANNELS.tick,
+          MIXER_GROUPS.earcons,
+          "Tick"
+        );
         tickChannelRef.current.disconnect();
-        tickChannelRef.current.connect(masterGainRef.current);
+        tickChannelRef.current.connect(tickMixerGain);
+      }
+
+      // Reconnect pink noise if it exists
+      if (pinkNoiseRef.current) {
+        const noiseMixerGain = mixerBus.ensureChannel(
+          MIXER_CHANNELS.pinkNoise,
+          MIXER_GROUPS.noise,
+          "Pink noise"
+        );
+        pinkNoiseRef.current.disconnect();
+        pinkNoiseRef.current.connect(noiseMixerGain);
       }
     }
 
@@ -171,9 +209,10 @@ const GraphSonification = () => {
     if (forceRecreate) {
       // console.log("Forcing recreation of channels");
 
-      // Dispose all existing channels
-      channelsRef.current.forEach(channel => {
+      // Dispose all existing channels (keep mixer mute/volume state)
+      channelsRef.current.forEach((channel, functionId) => {
         channel.dispose();
+        mixerBus.disposeChannelAudio(MIXER_CHANNELS.instrument(functionId));
       });
       channelsRef.current.clear();
     }
@@ -188,16 +227,13 @@ const GraphSonification = () => {
           volume: 0
         });
 
-        // Connect to master gain node if available, otherwise to destination
-        if (masterGainRef.current) {
-          channel.connect(masterGainRef.current);
-        } else {
-          channel.toDestination();
-        }
+        // Route through dedicated mixer gain → instruments group → master
+        const label = func.functionName || func.instrument || `Instrument ${functionId}`;
+        connectInstrumentChannelToMixer(functionId, channel, label);
 
         channelsRef.current.set(functionId, channel);
       } else {
-        // Update existing channel's mute state
+        // Update existing channel's mute state (function visibility, not mixer mute)
         const channel = channelsRef.current.get(functionId);
         if (channel) {
           channel.mute = !isFunctionActiveN(functionDefinitions, index);
@@ -214,13 +250,16 @@ const GraphSonification = () => {
           channel.dispose();
         }
         channelsRef.current.delete(functionId);
+        mixerBus.removeChannel(MIXER_CHANNELS.instrument(functionId));
       }
     });
 
     return () => {
-      channelsRef.current.forEach(channel => {
+      channelsRef.current.forEach((channel, functionId) => {
         channel.disconnect();
         channel.dispose();
+        // Keep mixer state across React effect re-runs; drop only Tone nodes
+        mixerBus.disposeChannelAudio(MIXER_CHANNELS.instrument(functionId));
       });
       channelsRef.current.clear();
     };

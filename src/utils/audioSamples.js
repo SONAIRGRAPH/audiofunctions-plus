@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../audio/mixerBus";
 
 class AudioSampleManager {
   constructor() {
@@ -20,6 +21,28 @@ class AudioSampleManager {
     }
   }
 
+  _connectPlayerToMixer(sampleName, player) {
+    const channelId = MIXER_CHANNELS.sample(sampleName);
+    const gain = mixerBus.ensureChannel(
+      channelId,
+      MIXER_GROUPS.earcons,
+      sampleName
+    );
+    player.disconnect();
+    player.connect(gain);
+  }
+
+  /**
+   * Re-attach all loaded players to the mixer (e.g. after master-gain / group rebuild).
+   */
+  reconnectAllToMixer() {
+    this.samples.forEach((sample, sampleName) => {
+      if (sample?.player) {
+        this._connectPlayerToMixer(sampleName, sample.player);
+      }
+    });
+  }
+
   // Load an audio sample from the public/audio-samples folder
   async loadSample(sampleName, filename) {
     if (this.samples.has(sampleName)) {
@@ -35,8 +58,9 @@ class AudioSampleManager {
 
       const samplePath = `/audio-samples/${filename}`;
 
-      // Create a new player
-      const player = new Tone.Player().toDestination();
+      // Create a new player and route through the earcons mixer channel
+      const player = new Tone.Player();
+      this._connectPlayerToMixer(sampleName, player);
 
       // Store both the player and metadata
       this.samples.set(sampleName, {
@@ -60,6 +84,7 @@ class AudioSampleManager {
       console.error(`Failed to load audio sample ${sampleName}:`, error);
       // Remove from samples if loading failed
       this.samples.delete(sampleName);
+      mixerBus.removeChannel(MIXER_CHANNELS.sample(sampleName));
     }
   }
 
@@ -105,6 +130,11 @@ class AudioSampleManager {
       if (!player.loaded) {
         console.warn(`Audio sample ${sampleName} player not ready`);
         return;
+      }
+
+      // Re-attach to mixer in case the bus was rebuilt after master-gain init
+      if (!mixerBus.hasChannel(MIXER_CHANNELS.sample(sampleName))) {
+        this._connectPlayerToMixer(sampleName, player);
       }
 
       // Apply options
@@ -208,6 +238,7 @@ class AudioSampleManager {
           console.error(`Failed to dispose audio sample ${name}:`, error);
         }
       }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.sample(name));
     });
 
     this.samples.clear();
