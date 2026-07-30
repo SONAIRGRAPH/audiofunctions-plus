@@ -50,6 +50,9 @@ class MixerBus {
     this._channels = new Map();
     this._groupState = {};
     this._channelState = {};
+    // 0/1 gate for discrete batch: silence instruments until the valid start X
+    // without muting earcons, ticks, or noise (those share the same master output).
+    this._instrumentsGate = 1;
 
     Object.values(MIXER_GROUPS).forEach((groupId) => {
       this._groupState[groupId] = createControlState(
@@ -225,6 +228,19 @@ class MixerBus {
     this._notify();
   }
 
+  /**
+   * Discrete-batch sonification gate for the instruments group only (0 or 1).
+   * Does not change UI mixer volume/mute; multiplies with them.
+   */
+  setInstrumentsGate(gate) {
+    this._instrumentsGate = gate ? 1 : 0;
+    this._applyGroupAudio(MIXER_GROUPS.instruments);
+  }
+
+  getInstrumentsGate() {
+    return this._instrumentsGate;
+  }
+
   subscribe(listener) {
     this._listeners.add(listener);
     return () => this._listeners.delete(listener);
@@ -257,6 +273,7 @@ class MixerBus {
 
     this._output = null;
     this._initialized = false;
+    this._instrumentsGate = 1;
   }
 
   // --- internals ---
@@ -265,7 +282,10 @@ class MixerBus {
     const entry = this._groups.get(groupId);
     const state = this._groupState[groupId];
     if (!entry || !state) return;
-    entry.gain.gain.value = state.muted ? 0 : state.volume;
+    const userGain = state.muted ? 0 : state.volume;
+    const gate =
+      groupId === MIXER_GROUPS.instruments ? this._instrumentsGate : 1;
+    entry.gain.gain.value = userGain * gate;
   }
 
   _applyChannelAudio(channelId) {

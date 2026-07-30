@@ -40,7 +40,7 @@ const GraphSonification = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const masterGainRef = useRef(null); // Reference to master gain node for discrete batch sonification control
+  const masterGainRef = useRef(null); // Output bus after mixer groups (pass-through; discrete batch gates instruments only)
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
@@ -54,7 +54,8 @@ const GraphSonification = () => {
   const batchResetDoneRef = useRef(false); // Track if batch reset has been done
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
-  const wasAtLeftBoundaryRef = useRef(false); // Track if cursor was at left boundary in previous tick
+  const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
+  const NO_Y_VOLUME_DB = -25;
 
   // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
   const connectInstrumentChannelToMixer = (functionId, channel, label) => {
@@ -592,8 +593,11 @@ const GraphSonification = () => {
       return;
     }
 
+    const isBatchPlayback =
+      PlayFunction.active && PlayFunction.source === "play";
+
     // Reset pitch classes when batch exploration starts
-    if (explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play") {
+    if (isBatchPlayback) {
       // Reset last pitch classes every time batch exploration starts
       // This ensures that even if the same pitch would be played, it gets played again in a new batch
       if (!batchResetDoneRef.current) {
@@ -605,51 +609,52 @@ const GraphSonification = () => {
         batchResetDoneRef.current = true;
         // Reset batch start earcon tracking
         batchStartEarconPlayedRef.current = false;
-        wasAtLeftBoundaryRef.current = false;
         // Playback starts parked on one edge; pre-seed it so the border earcon is not
         // fired for a position the user did not navigate to. Leaving that edge is
         // announced by chart_border_start instead.
         borderEdgeRef.current = PlayFunction.speed > 0 ? "left" : "right";
+        wasAtBatchStartEdgeRef.current = true;
         chartBorderLastPlayedRef.current = Date.now();
       }
     } else {
       // Reset flags when not in batch mode or when batch stops
       batchResetDoneRef.current = false;
       batchStartEarconPlayedRef.current = false;
-      wasAtLeftBoundaryRef.current = false;
+      wasAtBatchStartEdgeRef.current = false;
     }
 
-    // Control master gain based on cursor position vs valid start position for discrete batch sonification
-    if (masterGainRef.current) {
-      if (discreteBatchValidStartX !== null && cursorCoords && cursorCoords.length > 0 &&
-          explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play") {
-        // Get the current cursor X position (use first coordinate as reference)
-        const currentX = parseFloat(cursorCoords[0].x);
+    // Discrete batch: silence instruments only until the valid start X.
+    // Earcons / ticks / noise stay audible (they used to share masterGain and
+    // were incorrectly muted for the whole lead-in).
+    if (
+      discreteBatchValidStartX !== null &&
+      cursorCoords &&
+      cursorCoords.length > 0 &&
+      explorationMode === "batch" &&
+      PlayFunction.active &&
+      PlayFunction.source === "play"
+    ) {
+      const currentX = parseFloat(cursorCoords[0].x);
 
-        if (typeof currentX === 'number' && !isNaN(currentX) && isFinite(currentX)) {
-          // Determine direction based on PlayFunction speed
-          const direction = PlayFunction.speed >= 0 ? 1 : -1;
-
-          // Calculate gain: 0 if before valid start, 1 if at or after
-          let gainValue = 1;
-          if (direction > 0) {
-            // Moving forward: gain is 0 if currentX < validStartX
-            gainValue = currentX >= discreteBatchValidStartX ? 1 : 0;
-          } else {
-            // Moving backward: gain is 0 if currentX > validStartX
-            gainValue = currentX <= discreteBatchValidStartX ? 1 : 0;
-          }
-
-          // Set the gain value
-          masterGainRef.current.gain.value = gainValue;
+      if (typeof currentX === "number" && !isNaN(currentX) && isFinite(currentX)) {
+        const direction = PlayFunction.speed >= 0 ? 1 : -1;
+        let gateOpen = true;
+        if (direction > 0) {
+          gateOpen = currentX >= discreteBatchValidStartX;
         } else {
-          // Invalid cursor position, set gain to normal
-          masterGainRef.current.gain.value = 1;
+          gateOpen = currentX <= discreteBatchValidStartX;
         }
+        mixerBus.setInstrumentsGate(gateOpen ? 1 : 0);
       } else {
-        // Not in discrete batch mode or no valid start position, set gain to normal (1)
-        masterGainRef.current.gain.value = 1;
+        mixerBus.setInstrumentsGate(1);
       }
+    } else {
+      mixerBus.setInstrumentsGate(1);
+    }
+
+    // Keep master gain as a pass-through (batch gating no longer uses it)
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = 1;
     }
 
     // Check if any active function has a y-value below zero
@@ -660,24 +665,26 @@ const GraphSonification = () => {
 
     // Horizontal borders depend only on x, which every cursor shares, so they are
     // resolved once per frame rather than once per function.
-    const borderEdge = processHorizontalBorder(cursorCoords);
+    // At batch start, suppress chart_border until the cursor has left the parked
+    // start edge (announced by chart_border_start); then chart_border works again
+    // for the rest of the run, including the opposite end.
+    const suppressStartBorderEarcon =
+      isBatchPlayback && !batchStartEarconPlayedRef.current;
+    const borderEdge = processHorizontalBorder(cursorCoords, {
+      suppressEarcon: suppressStartBorderEarcon
+    });
     const isAtBorder = borderEdge !== null;
 
-    // Check if batch sonification is leaving the left boundary (for chart_border_start earcon)
-    if (explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play" &&
-        cursorCoords && cursorCoords.length > 0) {
-      const isAtLeftBoundaryNow = borderEdge === "left";
-      // If we were at the left boundary before and now we're not, play the start earcon
-      if (wasAtLeftBoundaryRef.current && !isAtLeftBoundaryNow && !batchStartEarconPlayedRef.current) {
-        // Only play if moving forward (positive speed) - leaving left boundary going right
-        if (PlayFunction.speed > 0) {
-          playAudioSample("chart_border_start", { volume: -15 });
-          batchStartEarconPlayedRef.current = true;
-          // console.log("Batch sonification leaving left boundary - playing chart_border_start.mp3");
-        }
+    // Check if batch sonification is leaving the start edge (for chart_border_start earcon)
+    if (isBatchPlayback && cursorCoords && cursorCoords.length > 0) {
+      const startEdge = PlayFunction.speed > 0 ? "left" : "right";
+      const isAtStartEdgeNow = borderEdge === startEdge;
+      // If we were at the start edge before and now we're not, play the start earcon once
+      if (wasAtBatchStartEdgeRef.current && !isAtStartEdgeNow && !batchStartEarconPlayedRef.current) {
+        playAudioSample("chart_border_start", { volume: -15 });
+        batchStartEarconPlayedRef.current = true;
       }
-      // Update the tracking ref for next tick
-      wasAtLeftBoundaryRef.current = isAtLeftBoundaryNow;
+      wasAtBatchStartEdgeRef.current = isAtStartEdgeNow;
     }
 
     // Check for landmark intersections
@@ -713,7 +720,7 @@ const GraphSonification = () => {
         // Stop all tones before playing the earcon
         stopAllTones();
 
-        playAudioSample("no_y", { volume: -25 });
+        playAudioSample("no_y", { volume: NO_Y_VOLUME_DB });
         boundaryTriggeredRef.current.set('no_visible_functions', now);
         // console.log(`No visible functions in current interval, playing no_y.mp3. cursorCoords:`, cursorCoords);
       }
@@ -727,7 +734,7 @@ const GraphSonification = () => {
         const now = Date.now();
 
         if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown
-          playAudioSample("no_y", { volume: -25 });
+          playAudioSample("no_y", { volume: NO_Y_VOLUME_DB });
           boundaryTriggeredRef.current.set('some_out_of_bounds', now);
           // console.log(`Some functions out of bounds, playing no_y.mp3 while continuing sonification of visible functions. cursorCoords:`, cursorCoords);
         }
@@ -807,9 +814,13 @@ const GraphSonification = () => {
    * Vertical exits are not treated as borders: a function value leaving the view is
    * reported by the no_y earcon instead.
    *
+   * During batch playback, suppressEarcon skips chart_border only while the cursor
+   * is still on the parked start edge. After chart_border_start has played (cursor
+   * left that edge), chart_border is allowed again — including at the opposite end.
+   *
    * Returns the border currently occupied, or null.
    */
-  const processHorizontalBorder = (coords) => {
+  const processHorizontalBorder = (coords, { suppressEarcon = false } = {}) => {
     const sample = coords.find(coord => Number.isFinite(parseFloat(coord.x)));
 
     if (!sample) {
@@ -838,8 +849,11 @@ const GraphSonification = () => {
 
     borderEdgeRef.current = edge;
 
-    if (play) {
+    if (play && !suppressEarcon) {
       playAudioSample("chart_border", { volume: -20 });
+      chartBorderLastPlayedRef.current = now;
+    } else if (play && suppressEarcon) {
+      // Still advance the cooldown clock so a later non-batch border does not burst
       chartBorderLastPlayedRef.current = now;
     }
 
@@ -902,19 +916,9 @@ const GraphSonification = () => {
     const isOutsideBounds = typeof y === 'number' && (y < graphBounds.yMin || y > graphBounds.yMax);
 
     if (isInvalid || isOutsideBounds) {
-      // Check if we haven't recently triggered this event to avoid spam
-      const lastTriggered = boundaryTriggeredRef.current.get(`${functionId}_discontinuity`);
-      const now = Date.now();
-
-      if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown for discontinuities
-        // Stop the tone for this function before playing the earcon
-        stopTone(functionId);
-        // console.log(`Stopping tone for function ${functionId} due to ${isInvalid ? 'discontinuity' : 'out of bounds'} at x=${coords.x}, y=${coords.y}`);
-
-        playAudioSample("no_y", { volume: -35 });
-        boundaryTriggeredRef.current.set(`${functionId}_discontinuity`, now);
-        // console.log(`${isInvalid ? 'Discontinuity' : 'Out of bounds'} event triggered for function ${functionId} at x=${coords.x}, y=${coords.y}`);
-      }
+      // Stop the tone; the shared no_y earcon is played once by the aggregate
+      // visible/out-of-bounds handlers above (same volume every time).
+      stopTone(functionId);
     } else {
       // Clear the discontinuity trigger when function becomes valid again
       boundaryTriggeredRef.current.delete(`${functionId}_discontinuity`);
@@ -1004,7 +1008,7 @@ const GraphSonification = () => {
           await playAudioSample('chart_border', { volume: -20 });
           break;
         case 'no_y':
-          await playAudioSample('no_y', { volume: -10 });
+          await playAudioSample('no_y', { volume: -25 });
           break;
         case 'y_axis_intersection':
           await playAudioSample('y_axis_intersection', { volume: -12 });
