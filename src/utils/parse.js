@@ -174,6 +174,34 @@ export function transformMathConstants(node) {
   })
 }
 
+// checks if txt is an assignment, for instance, y=x^2+1 or f(x)=x^2+1
+function isAssignment(txt){
+    // we first check that the input is a valid math expression
+    if (!(isValidMathParse(txt))){
+        return false;
+    }
+    const parsed = math.parse(txt); // we parse the string txt
+    return parsed.type == "AssignmentNode" || parsed.type == "FunctionAssignmentNode";
+}
+
+// returns the expression of an assignment, for instance, y=x^2+1 returns x^2+1
+// if the input is not an assignment, returns the input string
+function getAssignmentExpression(txt){
+    if (!isAssignment(txt)){
+        return txt;
+    }
+    const parsed = math.parse(txt); // we parse the string txt
+    if (parsed.type == "AssignmentNode"){
+        console.log("assignment parsed.value: ", parsed.value.toString({implicit: 'show'}));
+        return parsed.value.toString({implicit: 'show'});
+    }
+    if (parsed.type == "FunctionAssignmentNode"){
+        console.log("function assignment parsed.expr: ", parsed.expr.toString({implicit: 'show'}));
+        return parsed.expr.toString({implicit: 'show'});
+    }
+    return  "0";
+}
+
 //checks if txt describes a valid inequality: x op a, a op x with op in {<,>,<=,>=,=,==,!=}, or
 // double (chains) inequalities of the form a<=x<=b, a<x<=b, a<=x<b or a<x<b
 function isInequality(txt){
@@ -771,6 +799,7 @@ function parsePiecewise(txt){
     // it also uses implicit multiplication
     // for instance, 2 x is translated into 2*x
     function simplify(it){
+        console.log("Simplifying: ", it.toString());
         return math.simplifyConstant(it.toString()).toString({implicit: 'show'});
     }
     function items2expr(its){ //its is a list of items, each item is a pair [expr,ineq]
@@ -778,7 +807,18 @@ function parsePiecewise(txt){
             return "NaN";
         }
         const it=its[0]; // the first item
-        const fn = simplify(it.items[0]); // the expression of the function
+        let fn = it.items[0]; // the function expression
+        console.log("Parsing function: ", fn);
+        if (fn.type=="AssignmentNode"){
+            fn = fn.value; // we take the value of the assignment, that is the expression of the function
+        }
+        if (fn.type=="FunctionAssignmentNode"){
+            fn = fn.expr; // we take the expression of the function
+        }
+        console.log("Parsing function: (after check assignment) ", fn);
+
+        fn=simplify(fn); 
+        console.log("Function: ", fn.toString());
         const ineq=transformAssingnments(it.items[1]); // the inequality or equality where the function is defined, we change assignments to equalities
         let cond; // the condition of "C ? A : B"
         // inequalities of the form a op1 x op2 b are translate into a op1 x && x op2 b
@@ -912,9 +952,30 @@ export function checkMathSpell(func){
         // console.log("Single function to check: ", txt);
         errorMessage = null; // reset error message
         errorPosition = 0; // reset error position
-        if(isOneVariableFunction(txt)){
-            // jessiecode does does not understand E, e, pi, we translate them to mathjs constants
-            return [transformMathConstants(math.parse(txt)).toString({implicit: 'show'}), []];
+                if(isAssignment(txt)){
+                   const txt_parsed = math.parse(txt);
+                   if (txt_parsed.type === "AssignmentNode" && txt_parsed.object.name!="y" ){
+                        errorMessage = "Invalid assignment, only y=... of f(x)= is allowed";
+                        return ["0", [[errorMessage, 0]]];
+                   }
+                   if (txt_parsed.type === "FunctionAssignmentNode" && txt_parsed.params.length!=1){
+                        errorMessage = "Invalid assignment, only functions of one variable are allowed";
+                        return ["0", [[errorMessage, 0]]];
+                   }
+                   if (txt_parsed.type === "FunctionAssignmentNode" && txt_parsed.params[0]!="x"){
+                        errorMessage = "Invalid assignment, only functions in variable x are allowed";
+                        return ["0", [[errorMessage, 0]]];
+                   }
+                   if(isOneVariableFunction(getAssignmentExpression(txt))){
+                        // jessiecode does does not understand E, e, pi, we translate them to mathjs constants
+                        console.log("Single function is valid, parsing: ", transformMathConstants(math.parse(getAssignmentExpression(txt))).toString({implicit: 'show'}));
+                        return [transformMathConstants(math.parse(getAssignmentExpression(txt))).toString({implicit: 'show'}), []];
+                    }
+                 }else{        
+                    if(isOneVariableFunction(txt)){
+                    // jessiecode does does not understand E, e, pi, we translate them to mathjs constants
+                    return [transformMathConstants(math.parse(txt)).toString({implicit: 'show'}), []];
+                }
         }
         return ["0", [[errorMessage, 0]]];
     }
@@ -933,7 +994,26 @@ export function checkMathSpell(func){
             errorPosition = [i, 0];
             const fn = parts[i][0];
             const cn = parts[i][1];
-            if (!(isOneVariableFunction(fn))){
+            if(isAssignment(fn)){
+            const txt_parsed = math.parse(fn);
+                if (txt_parsed.type === "AssignmentNode" && txt_parsed.object.name!="y" ){
+                        errorMessage = "Invalid assignment, only y=... of f(x)= is allowed";
+                        errorPosition = [i, 0];
+                        errorList.push([errorMessage, errorPosition]);
+                }
+                if (txt_parsed.type === "FunctionAssignmentNode" && txt_parsed.params.length!=1){
+                        errorMessage = "Invalid assignment, only functions of one variable are allowed";
+                        errorPosition = [i, 0];
+                        errorList.push([errorMessage, errorPosition]);
+                }
+                if (txt_parsed.type === "FunctionAssignmentNode" && txt_parsed.params[0]!="x"){
+                        errorMessage = "Invalid assignment, only functions in variable x are allowed";
+                        errorPosition = [i, 0];
+                        errorList.push([errorMessage, errorPosition]);
+                }
+            }
+
+            if (!(isOneVariableFunction(getAssignmentExpression(fn)))){
                 //errorMessage = "Invalid function format";
                 errorPosition = [i, 0];
                 //return ["0", errorMessage, errorPosition];

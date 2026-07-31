@@ -49,34 +49,42 @@ function createEndPoints(func,board){
         return [[],[]];
     }
     const l = parsed.items; //list of items, each item is a pair [expr,ineq]
-    let ineq,v,a,b,p,i;
+    let ineq,v,a,b,p,i,fn;
     const endpoints = []; // the endpoints of the intervals
     for (i=0;i< l.length;i++){
         ineq = transformAssingnments(l[i].items[1]); // the inequality or equality of ith item, we change assignments to equalities
+        fn = l[i].items[0]; // the expression of the function in the ith item 
+        if (fn.type == "AssignmentNode"){ // if it is an assignment, we get the expression of the assignment
+          fn=fn.value;
+        }
+        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment  
+          fn=fn.expr;
+        }
+        console.log("Processing item ", i, " with function: ", fn, " and condition: ", ineq.toString());
         if ("op" in ineq){ //that is a single inequality or an equality
             if (ineq.op == "<=" || ineq.op ==">=" || ineq.op =="=="){ //one of the arguments is the variable "x"
                 if (("name" in ineq.args[1]) && (ineq.args[1].name == "x")){ // we have a op x, with op in {<=, >=, ==}
                     v=ineq.args[0].evaluate(); // v is the value of a in a op x
-                    p=board.create("point", [v,l[i].items[0].evaluate({x:v})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fn.evaluate({x:v})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
                     endpoints.push(p);
                     if (ineq.op == "=="){ // if we have an equality, we add the x coordinate to the list of x-coordinates of isolated points
                         // console.log("Adding isolated point at x=", v);
                         func.pointOfInterests.push({
                             x: v,
-                            y: l[i].items[0].evaluate({x:v}),
+                            y: fn.evaluate({x:v}),
                             type: "isolated"
                         });
                         // console.log("Function ", func);
                       }
                 }else{ // we have x op a, with op in {<=, >=, ==}
                     v=ineq.args[1].evaluate(); // v is the value of a in x op a
-                    p=board.create("point", [v,l[i].items[0].evaluate({x:v})], {cssClass: 'isolated-point', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fn.evaluate({x:v})], {cssClass: 'isolated-point', fixed:true, highlight:false, withLabel:false, size: 4});
                     endpoints.push(p);
                     if (ineq.op == "=="){ // if we have an equality, we add the x coordinate to the list of x-coordinates of isolated points
                         // console.log("Adding isolated point at x=", v);
                         func.pointOfInterests.push({
                             x: v,
-                            y: l[i].items[0].evaluate({x:v}),
+                            y: fn.evaluate({x:v}),
                             type: "isolated"
                         });
                         // console.log("Function ", func);
@@ -86,10 +94,10 @@ function createEndPoints(func,board){
             if (ineq.op == "<" || ineq.op ==">" || ineq.op=="!="){ // this we fill in white, since it is an strict inequality
                 if (("name" in ineq.args[1]) && (ineq.args[1].name == "x")){ // we have a op x, with op in {<,>}
                     v=ineq.args[0].evaluate(); // v is the value of a in a op x
-                    let fv = l[i].items[0].evaluate({x:v});
+                    let fv = fn.evaluate({x:v});
                     if (ineq.op == "!="){
                       if (isNaN(fv)){// the point is not defined here, we try the mean of the values at the left and right of v
-                        fv=(l[i].items[0].evaluate({x:v-0.0000001})+l[i].items[0].evaluate({x:v+0.0000001})/2);
+                        fv=(fn.evaluate({x:v-0.0000001})+fn.evaluate({x:v+0.0000001})/2);
                       }
                       // console.log("Possible value at x=", v, fv);
                       func.pointOfInterests.push({
@@ -102,10 +110,10 @@ function createEndPoints(func,board){
                     endpoints.push(p);
                 }else{ // we have x op a, with op in {<, >}
                     v=ineq.args[1].evaluate(); // v is the value of a in x op a
-                    let fv = l[i].items[0].evaluate({x:v});
+                    let fv = fn.evaluate({x:v});
                     if (ineq.op == "!="){
                       if (isNaN(fv)){// the point is not defined here, we try the mean of the values at the left and right of v
-                        fv=(l[i].items[0].evaluate({x:v-0.0000001})+l[i].items[0].evaluate({x:v+0.0000001})/2);
+                        fv=(fn.evaluate({x:v-0.0000001})+fn.evaluate({x:v+0.0000001})/2);
                       }
                       // console.log("Possible value at x=", v, fv);
                       func.pointOfInterests.push({
@@ -124,17 +132,17 @@ function createEndPoints(func,board){
             b=ineq.params[2].evaluate(); // the value of b in a op x op b
             // we should check here that conditionals are in the form smaller, smallerEq
             if (ineq.conditionals[0]=="smaller"){ // this is a smaller so we fill in white, since it is an strict inequality
-                p=board.create("point", [a,l[i].items[0].evaluate({x:a})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [a,fn.evaluate({x:a})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
                 endpoints.push(p);
             }else{  // this is a smallerEq so we fill in blue
-                p=board.create("point", [a,l[i].items[0].evaluate({x:a})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [a,fn.evaluate({x:a})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
                 endpoints.push(p);
             }
             if (ineq.conditionals[1]=="smaller"){ // this is a smaller so we fill in white, since it is an strict inequality
-                p=board.create("point", [b,l[i].items[0].evaluate({x:b})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [b,fn.evaluate({x:b})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
                 endpoints.push(p);
             }else{ // this is a smallerEq so we fill in blue
-                p=board.create("point", [b,l[i].items[0].evaluate({x:b})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [b,fn.evaluate({x:b})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
                 endpoints.push(p);
             }
         }

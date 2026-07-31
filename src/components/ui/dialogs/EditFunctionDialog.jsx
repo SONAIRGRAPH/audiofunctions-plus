@@ -455,7 +455,6 @@ const FunctionContainer = ({ index, value, instrument, onChange, onDelete, onAcc
               className={`text-input-outer ${hasError ? 'error-border error-input' : ''}`}
               aria-errormessage={hasError ? `function-${index}-error` : undefined}
             >
-              <div className="text-input-label " aria-hidden="true">f(x)=</div>
               <input
                 id={`function-${index}`}
                 type="text"
@@ -667,9 +666,6 @@ const PiecewiseFunctionContainer = ({ index, value, instrument, onChange, onDele
             className={`text-input-outer flex-1 min-w-0 ${functionHasError ? 'error-border error-input' : ''}`}
             aria-errormessage={functionHasError ? `piecewise-${index}-part-${partIndex}-function-error` : undefined}
           >
-            <div className="text-input-label" aria-hidden="true">
-              f(x)=
-            </div>
             <input
               id={`piecewise-function-${index}-part-${partIndex}-function`}
               type="text"
