@@ -175,7 +175,7 @@ export function transformMathConstants(node) {
 }
 
 // checks if txt is an assignment, for instance, y=x^2+1 or f(x)=x^2+1
-function isAssignment(txt){
+export function isAssignment(txt){
     // we first check that the input is a valid math expression
     if (!(isValidMathParse(txt))){
         return false;
