@@ -16,6 +16,8 @@ import {
   setFunctionInstrumentN
 } from "../../../utils/graphObjectOperations";
 
+import {isAssignment} from "../../../utils/parse.js";
+
 //import {separatingCommas } from "../../../utils/parse.js";
 
 const EditFunctionDialog = ({ isOpen, onClose }) => {
@@ -221,6 +223,28 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
       // Update function definitions with cleared landmarks where necessary
       setFunctionDefinitions(updatedDefinitions);
     }
+
+
+    const definitionsWithAssignments = functionDefinitions.map((currentFunc,index) => {
+      console.log("Checking function definition for assignment: ", currentFunc.functionDef);
+      // if (!isAssignment(currentFunc.functionDef)) {
+      //   currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      // }
+      if (typeof currentFunc.functionDef === 'string' && !isAssignment(currentFunc.functionDef)) {
+        currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      }
+      if (Array.isArray(currentFunc.functionDef)) {
+        currentFunc.functionDef = currentFunc.functionDef.map(([func, condition]) => {
+          if (!isAssignment(func)) {
+            func = "f(x) = " + func;
+          }
+          return [func, condition];
+        });
+      }
+      return currentFunc;
+    });
+
+    setFunctionDefinitions(definitionsWithAssignments);
 
     onClose();
     setTimeout(() => focusChart(), 100);
