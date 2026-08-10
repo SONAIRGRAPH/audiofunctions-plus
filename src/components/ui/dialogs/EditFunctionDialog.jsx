@@ -160,6 +160,29 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
         announceStatus(`Edit functions dialog opened. ${getFunctionCount(functionDefinitions)} functions available.`);
       }
     }
+
+    // "sanitize" function definitions to ensure they are in assignment form
+    const definitionsWithAssignments = functionDefinitions.map((currentFunc,index) => {
+      console.log("Checking function definition for assignment: ", currentFunc.functionDef);
+      // if (!isAssignment(currentFunc.functionDef)) {
+      //   currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      // }
+      if (typeof currentFunc.functionDef === 'string' && !isAssignment(currentFunc.functionDef)) {
+        currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      }
+      if (Array.isArray(currentFunc.functionDef)) {
+        currentFunc.functionDef = currentFunc.functionDef.map(([func, condition]) => {
+          if (!isAssignment(func)) {
+            func = "f(x) = " + func;
+          }
+          return [func, condition];
+        });
+      }
+      return currentFunc;
+    });
+
+    setFunctionDefinitions(definitionsWithAssignments);
+
   }, [isOpen, isReadOnly]);
 
   const handleCancel = () => {
