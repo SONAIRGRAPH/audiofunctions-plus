@@ -9,9 +9,10 @@
      base        element defaults
      components  reusable UI building blocks
      graph       JSXGraph SVG
+     palette     app-side skin for the command palette component
 
-   base, components and graph are deliberately left unlayered so their rules
-   take precedence over Tailwind's @layer utilities.
+   base, components, graph and palette are deliberately left unlayered so their
+   rules take precedence over Tailwind's @layer utilities.
    ============================================================================ */
 
 @import "tailwindcss";
@@ -21,3 +22,4 @@
 @import "./styles/base.css";
 @import "./styles/components.css";
 @import "./styles/graph.css";
+@import "./styles/command-palette.css";

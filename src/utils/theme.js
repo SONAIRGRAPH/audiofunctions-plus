@@ -5,7 +5,7 @@
  *   1. a block in src/styles/theme.css
  *   2. an entry in THEMES below
  * The command palette additionally needs an icon in THEME_ICONS in
- * PaletteActions_dyn.jsx.
+ * components/ui/usePaletteItems.jsx.
  *
  * The underlying mechanics (localStorage, attribute on <html>, validation)
  * live in prefs.js and are shared with the other display preferences.

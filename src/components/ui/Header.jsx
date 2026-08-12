@@ -1,14 +1,14 @@
 import React from "react";
-import { useKBar } from "kbar";
 import { Wand, Volume2, VolumeX } from "lucide-react";
 import { useGraphContext } from "../../context/GraphContext";
+import { useCommandPaletteActions } from "./command-palette";
 
 /**
  * Header component for the application
  * Features command palette trigger and audio toggle
  */
 const Header = () => {
-  const { query } = useKBar();
+  const { toggle } = useCommandPaletteActions();
   const { isAudioEnabled, setIsAudioEnabled, focusChart } = useGraphContext();
 
   const toggleAudio = () => {
@@ -41,7 +41,7 @@ const Header = () => {
         </button>
 
         <button
-          onClick={query.toggle}
+          onClick={toggle}
           className="btn-primary flex items-center gap-2"
           aria-label={`Open Command Palette, keyboard shortcut: ${shortcutKey}`}
           title={`Open Command Palette (${shortcutKey})`}

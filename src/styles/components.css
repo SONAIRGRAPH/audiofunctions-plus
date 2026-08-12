@@ -145,29 +145,6 @@
 
 
 /* ---------------------------------------------------------------------------
-   Highlighted list entries (command palette)
-   In the high-contrast theme black text sits on the accent color, so icons
-   and shortcuts have to follow suit.
-   --------------------------------------------------------------------------- */
-[data-theme="high-contrast"] .high-contrast-highlight-border {
-  color: var(--af-c-hc-background) !important;
-  font-weight: 700 !important;
-}
-
-[data-theme="high-contrast"] .high-contrast-highlight-border svg {
-  color: var(--af-c-hc-background) !important;
-}
-
-[data-theme="high-contrast"] .high-contrast-highlight-border .opacity-70 {
-  opacity: 1 !important;
-}
-
-[data-theme="high-contrast"] .high-contrast-highlight-border .text-txt-subtitle {
-  color: var(--af-c-hc-background) !important;
-}
-
-
-/* ---------------------------------------------------------------------------
    Error states
    --------------------------------------------------------------------------- */
 .error-border {

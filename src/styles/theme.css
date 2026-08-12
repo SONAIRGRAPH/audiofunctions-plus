@@ -12,6 +12,7 @@
      3. Preference axes     line width and text size, independent of the theme
      4. Effective values    base value x preference factor
      5. Themes              one block per theme
+     6. Component tokens    themed components with their own token namespace
 
    The order matters: :root, [data-theme="..."] and [data-line-width="..."] all
    have the same specificity, so whatever comes last wins. Themes are last
@@ -20,7 +21,7 @@
    To add a theme:
      1. Copy a block in section 5 and adjust its values.
      2. Add an entry to THEMES in src/utils/theme.js.
-     3. Add an icon to THEME_ICONS in PaletteActions_dyn.jsx.
+     3. Add an icon to THEME_ICONS in src/components/ui/usePaletteItems.jsx.
    ============================================================================ */
 
 
@@ -183,6 +184,7 @@ html {
   --af-border-focus:    var(--af-c-green);
   --af-border-contrast: transparent;
   --af-hover-fill:      color-mix(in srgb, var(--af-primary), transparent 45%);
+  --af-hover-text:      var(--af-text-title);
   --af-input-bg:        var(--af-c-white);
 
   /* -- Error states -- */
@@ -252,6 +254,7 @@ html {
   --af-border-focus:    var(--af-c-green);
   --af-border-contrast: transparent;
   --af-hover-fill:      color-mix(in srgb, var(--af-primary), transparent 40%);
+  --af-hover-text:      var(--af-text-title);
   --af-input-bg:        var(--af-c-gray-700);
 
   /* -- Error states -- */
@@ -313,7 +316,7 @@ html {
   --af-primary: var(--af-c-hc-accent);
   --af-bg:      var(--af-c-hc-background);
   --af-surface: #0a0a0a;
-  --af-overlay: rgba(255, 255, 255, 0.7);
+  --af-overlay: rgba(0, 0, 0, 0.7);
   --af-danger:  #d91018;
 
   --af-link:       var(--af-c-hc-link);
@@ -331,6 +334,7 @@ html {
   --af-border-focus:    var(--af-c-hc-accent);
   --af-border-contrast: var(--af-c-hc-link);
   --af-hover-fill:      var(--af-c-hc-accent);
+  --af-hover-text:      var(--af-c-hc-background);
   --af-input-bg:        var(--af-c-hc-background);
 
   /* -- Error states -- */
@@ -415,6 +419,7 @@ html {
   --af-border-focus:    var(--af-c-dpf-primary);
   --af-border-contrast: var(--af-c-dpf-accent);
   --af-hover-fill:      color-mix(in srgb, var(--af-c-dpf-primary), transparent 45%);
+  --af-hover-text:      var(--af-text-title);
   --af-input-bg:        var(--af-c-white);
 
   /* -- Error states -- */
@@ -453,4 +458,50 @@ html {
 
   --af-landmark-fill:   var(--af-bg);
   --af-landmark-stroke: var(--af-c-dpf-accent);
+}
+
+
+/* ============================================================================
+   6. Component tokens
+
+   The command palette in src/components/ui/command-palette is self-contained
+   and reads its colors from its own --cp-* namespace, each with a literal
+   fallback. Mapping them here is all it takes to adopt the app theme; its CSS
+   stays untouched and portable.
+
+   Selector is html[data-theme] on purpose, not :root: command-palette.css is
+   imported from the component and therefore bundled after this file, and its
+   media queries redeclare .cp-* rules at :root specificity. The extra element
+   makes the mapping win regardless of the cascade order.
+   ============================================================================ */
+html[data-theme] {
+  --cp-backdrop: var(--af-overlay);
+  --cp-bg:       var(--af-bg);
+  --cp-surface:  var(--af-surface);   /* <kbd> background */
+  --cp-border:   var(--af-border);
+
+  --cp-text:        var(--af-text);
+  --cp-text-strong: var(--af-text-title);
+
+  --cp-accent:        var(--af-text-title);      /* highlighted search match */
+  --cp-accent-bg:     var(--af-hover-fill);   /* active row */
+  --cp-accent-fg:     var(--af-hover-text);   /* everything on top of it */
+  --cp-accent-border: var(--af-border-focus);
+
+  --cp-shadow: var(--af-shadow);
+}
+
+/* The theme's overlay is a bright veil that separates a modal from the page
+   behind it. Under the palette's blur that reads as glare, so it gets a black
+   scrim -- built like the light theme's, only from the other end. */
+[data-theme="high-contrast"] {
+  --cp-backdrop: color-mix(in srgb, var(--af-c-black), transparent 25%);
+}
+
+/* The component drops its blur in this case -- so make the scrim truly opaque
+   instead of leaving a translucent overlay without the blur behind it. */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme] {
+    --cp-backdrop: var(--af-bg);
+  }
 }

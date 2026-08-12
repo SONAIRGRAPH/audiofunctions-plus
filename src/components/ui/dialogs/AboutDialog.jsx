@@ -359,17 +359,6 @@ const AboutDialog = ({ isOpen, onClose }) => {
                         </div>
 
                         <div className="bg-elem-background border border-border rounded p-3">
-                          <strong className="text-titles">kbar</strong><br />
-                          <span className="text-xs text-descriptions">Command Palette</span><br />
-                          <button
-                            onClick={() => handleExternalLink('https://kbar.vercel.app', 'kbar website')}
-                            className="text-xs text-primary hover:opacity-80 underline transition-opacity"
-                          >
-                            kbar.vercel.app
-                          </button>
-                        </div>
-
-                        <div className="bg-elem-background border border-border rounded p-3">
                           <strong className="text-titles">Headless UI</strong><br />
                           <span className="text-xs text-descriptions">Accessible UI Components</span><br />
                           <button
