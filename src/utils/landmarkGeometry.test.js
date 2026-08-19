@@ -52,6 +52,11 @@ describe("crossedLandmarkX", () => {
     expect(crossedLandmarkX(0.25, 0, 0.1)).toBe(true);
   });
 
+  it("stays silent when leaving the exact landmark x", () => {
+    expect(crossedLandmarkX(0, 1, 0)).toBe(false);
+    expect(crossedLandmarkX(0, -1, 0)).toBe(false);
+  });
+
   it("stays silent while sitting still on or near the landmark", () => {
     expect(crossedLandmarkX(0, 0, 0)).toBe(false);
     expect(crossedLandmarkX(1, 1, 0)).toBe(false);
@@ -76,6 +81,13 @@ describe("resolveLandmarkHit", () => {
 
   it("does not re-fire while resting on the landmark", () => {
     expect(resolveLandmarkHit({ prevX: 0, cursorX: 0, landmarkX: 0 }).hit).toBe(false);
+  });
+
+  it("fires when arriving on the landmark x, not when leaving it", () => {
+    expect(resolveLandmarkHit({ prevX: -1, cursorX: 0, landmarkX: 0 }).hit).toBe(true);
+    expect(resolveLandmarkHit({ prevX: 1, cursorX: 0, landmarkX: 0 }).hit).toBe(true);
+    expect(resolveLandmarkHit({ prevX: 0, cursorX: 1, landmarkX: 0 }).hit).toBe(false);
+    expect(resolveLandmarkHit({ prevX: 0, cursorX: -1, landmarkX: 0 }).hit).toBe(false);
   });
 
   it("on first observation, fires only when already inside the match window", () => {

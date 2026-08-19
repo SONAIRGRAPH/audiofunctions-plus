@@ -2,9 +2,9 @@
  * Landmark hit geometry.
  *
  * Sonification uses X-crossing: the cursor navigates mainly along x, so "reached
- * this landmark" is whether the segment from the previous x to the current x
- * contains the landmark's x. That is zoom-proof and survives stepwise jumps that
- * never land inside a fixed radius.
+ * this landmark" is whether this step arrives at or straddles the landmark's x.
+ * Leaving a landmark the cursor was already sitting on does not count. That is
+ * zoom-proof and survives stepwise jumps that never land inside a fixed radius.
  *
  * Creation / "already here?" checks still need a positional window; that window
  * scales with the visible range (and never thinner than half a step) so it stays
@@ -31,15 +31,16 @@ export function landmarkWindows(bounds, stepSize = 0) {
 }
 
 /**
- * True when the cursor moved across (or landed on) the landmark's x.
- * Stationary frames (prevX === cursorX) never count, so sitting on a landmark
- * does not re-trigger.
+ * True when this step reaches or crosses the landmark's x.
+ * Stationary frames never count. Stepping away from exact landmark x (leave)
+ * also does not count; only landing on it or straddling it does.
  */
 export function crossedLandmarkX(prevX, cursorX, landmarkX) {
   if (!Number.isFinite(prevX) || !Number.isFinite(cursorX) || !Number.isFinite(landmarkX)) {
     return false;
   }
   if (prevX === cursorX) return false;
+  if (prevX === landmarkX) return false;
   return (prevX - landmarkX) * (cursorX - landmarkX) <= 0;
 }
 
@@ -54,7 +55,7 @@ export function isNearLandmark(landmark, x, y, windows) {
 /**
  * Decide whether the landmark earcon should sound this frame.
  *
- * With a previous x: fire on an X-crossing.
+ * With a previous x: fire on reaching or crossing the landmark x, not on leaving.
  * Without one (first observation of this function): fire only if the cursor is
  * already inside the scaled match window, matching the old "already at landmark"
  * behaviour without a fixed radius.
