@@ -40,7 +40,7 @@ const GraphSonification = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const masterGainRef = useRef(null); // Output bus after mixer groups (pass-through; discrete batch gates instruments only)
+  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from isAudioEnabled
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
@@ -51,6 +51,7 @@ const GraphSonification = () => {
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
   const [forceRecreate, setForceRecreate] = useState(false); // State to force recreation of sonification pipeline
+  const wasEditDialogOpenRef = useRef(false); // Detect edit-dialog close (not initial mount)
   const batchResetDoneRef = useRef(false); // Track if batch reset has been done
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
@@ -67,6 +68,29 @@ const GraphSonification = () => {
     channel.disconnect();
     channel.connect(mixerGain);
   };
+
+  // Last node before the audio device: mixer groups feed this, isAudioEnabled sets 0/1
+  useEffect(() => {
+    if (!masterGainRef.current) {
+      masterGainRef.current = new Tone.Gain(0).toDestination();
+      mixerBus.initialize(masterGainRef.current);
+      audioSampleManager.reconnectAllToMixer();
+    }
+
+    return () => {
+      if (masterGainRef.current) {
+        masterGainRef.current.dispose();
+        masterGainRef.current = null;
+      }
+    };
+  }, []);
+
+  // P / isAudioEnabled only mutes the mix; sonification keeps running
+  useEffect(() => {
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = isAudioEnabled ? 1 : 0;
+    }
+  }, [isAudioEnabled]);
 
   // Initialize tick synth
   useEffect(() => {
@@ -133,50 +157,6 @@ const GraphSonification = () => {
         pinkNoiseRef.current = null;
       }
       mixerBus.disposeChannelAudio(MIXER_CHANNELS.pinkNoise);
-    };
-  }, []);
-
-  // Initialize master gain + mixer group buses for discrete batch sonification control
-  useEffect(() => {
-    if (!masterGainRef.current) {
-      masterGainRef.current = new Tone.Gain(1).toDestination();
-      // Group buses feed master gain; per-channel mixer gains feed their group
-      mixerBus.initialize(masterGainRef.current);
-      audioSampleManager.reconnectAllToMixer();
-
-      // Reconnect existing instrument channels through their mixer gains
-      channelsRef.current.forEach((channel, functionId) => {
-        connectInstrumentChannelToMixer(functionId, channel);
-      });
-
-      // Reconnect tick channel if it exists
-      if (tickChannelRef.current) {
-        const tickMixerGain = mixerBus.ensureChannel(
-          MIXER_CHANNELS.tick,
-          MIXER_GROUPS.earcons,
-          "Tick"
-        );
-        tickChannelRef.current.disconnect();
-        tickChannelRef.current.connect(tickMixerGain);
-      }
-
-      // Reconnect pink noise if it exists
-      if (pinkNoiseRef.current) {
-        const noiseMixerGain = mixerBus.ensureChannel(
-          MIXER_CHANNELS.pinkNoise,
-          MIXER_GROUPS.noise,
-          "Pink noise"
-        );
-        pinkNoiseRef.current.disconnect();
-        pinkNoiseRef.current.connect(noiseMixerGain);
-      }
-    }
-
-    return () => {
-      if (masterGainRef.current) {
-        masterGainRef.current.dispose();
-        masterGainRef.current = null;
-      }
     };
   }, []);
 
@@ -337,34 +317,32 @@ const GraphSonification = () => {
     };
   }, [functionDefinitions, getInstrumentByName, forceRecreate]);
 
-  // Clean up sonification when edit dialog closes
+  // Recreate the pipeline when an edit dialog closes (not on mount or P toggle)
   useEffect(() => {
     let timeoutId = null;
+    const isOpen = isEditFunctionDialogOpen || isEditLandmarkDialogOpen;
 
-    if (!isEditFunctionDialogOpen && !isEditLandmarkDialogOpen && isAudioEnabled) {
-      // When edit dialog closes, force recreation of the entire sonification pipeline
-      // console.log("Sonification resumed: Edit dialog closed - forcing pipeline recreation");
-
-      // Stop all current tones and clear references immediately
+    if (wasEditDialogOpenRef.current && !isOpen) {
       stopAllTones();
       stopPinkNoise();
 
-      // Force recreation with a small delay to ensure state updates are complete
       timeoutId = setTimeout(() => {
         setForceRecreate(true);
       }, 50);
     }
+
+    wasEditDialogOpenRef.current = isOpen;
 
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     };
-  }, [isEditFunctionDialogOpen, isEditLandmarkDialogOpen, isAudioEnabled]);
+  }, [isEditFunctionDialogOpen, isEditLandmarkDialogOpen]);
 
   // Reset lastPitchClass for functions that just became active (for discrete sonification)
   useEffect(() => {
-    if (!isAudioEnabled || isEditFunctionDialogOpen) return;
+    if (isEditFunctionDialogOpen) return;
 
     // Get currently active function IDs
     const activeFunctionIds = new Set(
@@ -386,7 +364,7 @@ const GraphSonification = () => {
 
     // Update the previous active function IDs (create a new Set to avoid mutation issues)
     prevActiveFunctionIdsRef.current = new Set(activeFunctionIds);
-  }, [functionDefinitions, isAudioEnabled, isEditFunctionDialogOpen]);
+  }, [functionDefinitions, isEditFunctionDialogOpen]);
 
   // Clean up tracking refs when functions change
   useEffect(() => {
@@ -581,13 +559,13 @@ const GraphSonification = () => {
   };
 
   // Add a visual indicator when sonification is paused during editing
-  if ((isEditFunctionDialogOpen || isEditLandmarkDialogOpen) && isAudioEnabled) {
+  if (isEditFunctionDialogOpen || isEditLandmarkDialogOpen) {
     // console.log("Sonification paused: Edit dialog is open");
   }
 
   // Main effect for processing cursor coordinates and triggering sonification
   useEffect(() => {
-    if (!isAudioEnabled || isEditFunctionDialogOpen || isEditLandmarkDialogOpen || !cursorCoords) {
+    if (isEditFunctionDialogOpen || isEditLandmarkDialogOpen || !cursorCoords) {
       stopAllTones();
       stopPinkNoise();
       return;
@@ -650,11 +628,6 @@ const GraphSonification = () => {
       }
     } else {
       mixerBus.setInstrumentsGate(1);
-    }
-
-    // Keep master gain as a pass-through (batch gating no longer uses it)
-    if (masterGainRef.current) {
-      masterGainRef.current.gain.value = 1;
     }
 
     // Check if any active function has a y-value below zero
@@ -753,7 +726,7 @@ const GraphSonification = () => {
       const pan = calculatePan(x);
 
       // Handle tick sound with panning - only when Shift is pressed, regardless of exploration mode
-      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isAudioEnabled && isShiftPressed &&
+      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isShiftPressed &&
           (explorationMode === "keyboard_smooth" || explorationMode === "mouse" || explorationMode === "batch")) {
         let n = Math.floor(x / stepSize);
         if (n !== lastTickIndexRef.current) {
@@ -804,7 +777,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, isAudioEnabled, isEditFunctionDialogOpen, isEditLandmarkDialogOpen, functionDefinitions, graphBounds, stepSize, explorationMode]);
+  }, [cursorCoords, isEditFunctionDialogOpen, isEditLandmarkDialogOpen, functionDefinitions, graphBounds, stepSize, explorationMode]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it
@@ -982,11 +955,6 @@ const GraphSonification = () => {
 
   // Helper function to play audio samples
   const playAudioSample = async (sampleName, options = {}) => {
-    // Don't play samples if audio is not enabled
-    if (!isAudioEnabled) {
-      return;
-    }
-
     try {
       await audioSampleManager.playSample(sampleName, options);
     } catch (error) {
@@ -997,11 +965,6 @@ const GraphSonification = () => {
   // Example function to demonstrate how to play samples during sonification
   // You can call this function when specific events occur
   const triggerSampleEvent = async (eventType) => {
-    // Don't trigger samples if audio is not enabled
-    if (!isAudioEnabled) {
-      return;
-    }
-
     try {
       switch (eventType) {
         case 'chart_border':

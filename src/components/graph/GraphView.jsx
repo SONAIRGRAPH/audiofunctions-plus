@@ -147,7 +147,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -643,7 +643,7 @@ const GraphView = () => {
       board.update();
 
       // --- X axis tick logic (track last ticked index, no epsilon, not reset on resume) ---
-      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isAudioEnabled) {
+      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x)) {
         let n = Math.floor(x / stepSize);
         if (n !== lastTickIndexRef.current) {
           // tickSynth.triggerAttackRelease("C6", "16n"); // Removed tick synth

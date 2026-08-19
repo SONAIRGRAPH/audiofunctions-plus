@@ -100,7 +100,6 @@ export default function KeyboardHandler() {
         setExplorationMode,
         PlayFunction,
         mouseTimeoutRef,
-        isAudioEnabled,
         setIsShiftPressed,
         graphBounds
     } = useGraphContext();
@@ -491,7 +490,7 @@ export default function KeyboardHandler() {
                             } else {
                                 sl = l.filter(e => (NewX < e) && (e < CurrentX));
                             }
-                            if (sl.length > 0 && isAudioEnabled) {
+                            if (sl.length > 0) {
                                 try {
                                     await audioSampleManager.playSample("notification", { volume: -15 });
                                 } catch (error) {
@@ -578,7 +577,7 @@ export default function KeyboardHandler() {
         document.removeEventListener("keydown", handleKeyDown);
         document.removeEventListener("keyup", handleKeyUp);
       };
-    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, isAudioEnabled, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings]);
+    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings]);
 
     return null;
 }
