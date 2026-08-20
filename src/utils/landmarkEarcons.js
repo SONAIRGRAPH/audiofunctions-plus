@@ -61,10 +61,9 @@ class LandmarkEarconManager {
     }
 
     try {
-      // Use the same play logic as other earcons (e.g., no_y.mp3)
-      // Only volume/playbackRate supported; pan is ignored by the sample manager currently
       audioSampleManager.playSample(sampleName, {
-        volume: options.volume !== undefined ? options.volume : -12
+        volume: options.volume !== undefined ? options.volume : -12,
+        pan: options.pan
       });
     } catch (error) {
       console.error(`Error playing landmark sample for shape ${shape}:`, error);

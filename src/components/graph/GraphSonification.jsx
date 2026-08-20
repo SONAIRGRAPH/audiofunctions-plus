@@ -654,7 +654,10 @@ const GraphSonification = () => {
       const isAtStartEdgeNow = borderEdge === startEdge;
       // If we were at the start edge before and now we're not, play the start earcon once
       if (wasAtBatchStartEdgeRef.current && !isAtStartEdgeNow && !batchStartEarconPlayedRef.current) {
-        playAudioSample("chart_border_start", { volume: -15 });
+        playAudioSample("chart_border_start", {
+          volume: -15,
+          pan: calculatePan(parseFloat(cursorCoords[0].x))
+        });
         batchStartEarconPlayedRef.current = true;
       }
       wasAtBatchStartEdgeRef.current = isAtStartEdgeNow;
@@ -693,7 +696,10 @@ const GraphSonification = () => {
         // Stop all tones before playing the earcon
         stopAllTones();
 
-        playAudioSample("no_y", { volume: NO_Y_VOLUME_DB });
+        playAudioSample("no_y", {
+          volume: NO_Y_VOLUME_DB,
+          pan: calculatePan(parseFloat(cursorCoords[0].x))
+        });
         boundaryTriggeredRef.current.set('no_visible_functions', now);
         // console.log(`No visible functions in current interval, playing no_y.mp3. cursorCoords:`, cursorCoords);
       }
@@ -707,7 +713,10 @@ const GraphSonification = () => {
         const now = Date.now();
 
         if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown
-          playAudioSample("no_y", { volume: NO_Y_VOLUME_DB });
+          playAudioSample("no_y", {
+            volume: NO_Y_VOLUME_DB,
+            pan: calculatePan(parseFloat(cursorCoords[0].x))
+          });
           boundaryTriggeredRef.current.set('some_out_of_bounds', now);
           // console.log(`Some functions out of bounds, playing no_y.mp3 while continuing sonification of visible functions. cursorCoords:`, cursorCoords);
         }
@@ -823,7 +832,7 @@ const GraphSonification = () => {
     borderEdgeRef.current = edge;
 
     if (play && !suppressEarcon) {
-      playAudioSample("chart_border", { volume: -20 });
+      playAudioSample("chart_border", { volume: -20, pan: calculatePan(x) });
       chartBorderLastPlayedRef.current = now;
     } else if (play && suppressEarcon) {
       // Still advance the cooldown clock so a later non-batch border does not burst
@@ -860,7 +869,7 @@ const GraphSonification = () => {
       const now = Date.now();
 
       if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown
-        playAudioSample("y_axis_intersection", { volume: -12 });
+        playAudioSample("y_axis_intersection", { volume: -12, pan: calculatePan(x) });
         yAxisTriggeredRef.current.set(functionId, now);
         // console.log(`Y-axis intersection event triggered for function ${functionId} at x=${x} (batch mode: ${explorationMode === "batch"})`);
       }
@@ -943,7 +952,7 @@ const GraphSonification = () => {
 
         if (!lastTriggered || (now - lastTriggered) > LANDMARK_COOLDOWN_MS) {
           landmarkEarconManager.playLandmarkEarcon(landmark, {
-            pan: (cursorX - graphBounds.xMin) / (graphBounds.xMax - graphBounds.xMin) * 2 - 1 // -1 to 1
+            pan: calculatePan(cursorX)
           });
           boundaryTriggeredRef.current.set(landmarkKey, now);
         }
