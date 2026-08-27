@@ -1,0 +1,40 @@
+/* ============================================================================
+   TAILWIND BRIDGE
+   ----------------------------------------------------------------------------
+   The single point of contact between the app tokens and Tailwind.
+
+   "@theme inline" writes the reference straight into the generated utility
+   (.bg-background { background-color: var(--af-bg) }) instead of baking in the
+   value. That way the utilities react to a theme switch at runtime and
+   Tailwind does not have to generate anything per theme.
+
+   The names on the left are what Tailwind turns into utilities -- they exist
+   purely as an interface for the class names used in JSX. The real tokens are
+   on the right; new code should use --af-* directly.
+   ============================================================================ */
+
+@theme inline {
+  /* General */
+  --color-background:      var(--af-bg);
+  --color-elem-background: var(--af-surface);
+  --color-overlay:         var(--af-overlay);
+  --color-primary:         var(--af-primary);
+  --color-danger:          var(--af-danger);
+
+  /* Text */
+  --color-txt:          var(--af-text);
+  --color-txt-title:    var(--af-text-title);
+  --color-txt-subtitle: var(--af-text-subtitle);
+  --color-txt-label:    var(--af-text-label);
+
+  /* Aliases for the title/description classes used throughout the dialogs */
+  --color-titles:       var(--af-text-title);
+  --color-descriptions: var(--af-text-subtitle);
+
+  /* Borders and states */
+  --color-border:          var(--af-border);
+  --color-hover-border:    var(--af-border-hover);
+  --color-hover-full:      var(--af-hover-fill);
+  --color-focus-border:    var(--af-border-focus);
+  --color-contrast-border: var(--af-border-contrast);
+}

@@ -1,0 +1,133 @@
+/* ============================================================================
+   COMMAND PALETTE -- app-side skin
+   ----------------------------------------------------------------------------
+   src/components/ui/command-palette is a self-contained component and stays
+   untouched, so it can be updated from upstream without merging. Everything
+   this app wants differently lives here. Colors come from the --cp-* mapping in
+   theme.css section 6; this file only adjusts geometry, size and the parts of
+   the selection that a token cannot express.
+
+   Every selector carries an html[data-theme] prefix. Not decoration: the
+   component's stylesheet is imported from its JSX and therefore lands *after*
+   index.css in the bundle, so an override at equal specificity would lose. The
+   attribute is set pre-paint by the inline script in index.html, so the prefix
+   always matches.
+
+   Sizes are rem, deliberately. The component works in px and therefore ignores
+   the text-size preference (html { font-size } in theme.css section 3); in rem
+   the palette scales with it like the rest of the app.
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------------------
+   Panel and chrome -- a little roomier throughout
+   --------------------------------------------------------------------------- */
+html[data-theme] .cp-panel {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: 70vh;
+}
+
+html[data-theme] .cp-breadcrumb {
+  padding: 0.75rem 1.25rem 0;
+  font-size: 0.9375rem;
+}
+
+html[data-theme] .cp-input {
+  padding: 1.125rem 1.25rem;
+  font-size: 1.25rem;
+}
+
+html[data-theme] .cp-footer {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+}
+
+html[data-theme] .cp-empty {
+  padding: 1.5rem 1.25rem;
+  font-size: 1.0625rem;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Rows -- the selection covers the full row
+
+   The component insets its rows and rounds them into pills. Dropping the list's
+   horizontal padding and the radius lets the highlight run from edge to edge;
+   the row's own padding keeps the content aligned with the input above.
+   --------------------------------------------------------------------------- */
+html[data-theme] .cp-list {
+  padding: 0 0;
+}
+
+html[data-theme] .cp-option {
+  gap: 0.875rem;
+  padding: 0.825rem 1.25rem;
+  border-radius: 0;
+}
+
+html[data-theme] .cp-option__icon {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+html[data-theme] .cp-option__text {
+  font-size: 1.0625rem;
+}
+
+html[data-theme] .cp-trail {
+  font-size: 0.875rem;
+}
+
+html[data-theme] .cp-option__hint {
+  font-size: 0.9375rem;
+}
+
+/* The matched letters carry the search result, so they get real bold rather than
+   the component's semibold. 700 is the ceiling: the app runs on system-ui with
+   font-synthesis: none (base.css), so anything heavier falls back to the nearest
+   weight the installed font actually has instead of being faked. */
+html[data-theme] .cp-match {
+  font-weight: 700;
+}
+
+html[data-theme] .cp-kbd {
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+
+/* ---------------------------------------------------------------------------
+   The active row
+
+   The fill marks the selection; the ring is off unless a theme asks for it via
+   --cp-active-ring (see theme.css section 6). A width of 0 draws nothing, so
+   this single rule covers both cases.
+
+   The colors are one statement as well: whoever fills the row also says what is
+   readable on top of it. Label and key chip are the only children that carry a
+   color of their own -- icon, trail, hint and chevron already follow through
+   currentColor and opacity.
+
+   The matched letters are the exception: they stay colored, just in the variant
+   that holds up on the fill. Handing them the row color would drop the one
+   distinction the search result is built on, exactly where the eye is.
+   --------------------------------------------------------------------------- */
+html[data-theme] .cp-option--active {
+  box-shadow: inset 0 0 0 var(--cp-active-ring) var(--cp-accent-border);
+}
+
+html[data-theme] .cp-option--active,
+html[data-theme] .cp-option--active :is(.cp-option__label, .cp-kbd) {
+  color: var(--cp-accent-fg);
+}
+
+html[data-theme] .cp-option--active .cp-match {
+  color: var(--cp-match-fg);
+}
+
+/* The chip sits on the fill and cannot keep a surface of its own. A border in
+   the row's color delineates it without knowing what the fill is. */
+html[data-theme] .cp-option--active .cp-kbd {
+  border-color: currentColor;
+  background: transparent;
+}

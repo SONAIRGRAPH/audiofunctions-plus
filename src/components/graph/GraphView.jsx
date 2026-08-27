@@ -292,8 +292,8 @@ const GraphView = () => {
       grid: {
         cssClass: "grid",
         majorStep: stepSize
-        // gridX: stepSize, // Grid-Abstand für X-Achse
-        // gridY: stepSize, // Grid-Abstand für Y-Achse
+        // gridX: stepSize, // grid spacing for the x axis
+        // gridY: stepSize, // grid spacing for the y axis
       },
       axis: {
         cssClass: "axis",
@@ -356,7 +356,7 @@ const GraphView = () => {
     parsedExpressionsRef.current.clear();
 
     // Create graph objects and cursors for each active function
-    activeFunctions.forEach(func => {
+    activeFunctions.forEach((func, funcIndex) => {
       let graphFormula;
       let expr;
       let hasError = false;
@@ -474,12 +474,16 @@ const GraphView = () => {
       // Store the parsed expression
       parsedExpressionsRef.current.set(func.id, expr);
 
-      // Create graph object with function's color
+      // Curve color: an explicit func.color takes precedence and is passed as
+      // an attribute. Without one the curve only gets a class from the theme
+      // palette (--af-curve-1 ... --af-curve-6), so it recolors on a theme
+      // switch without rebuilding the board.
+      const curvePaletteClass = `curve-${(funcIndex % 6) + 1}`;
       const graphObject = board.create("functiongraph", [graphFormula], {
-        cssClass: "curve",
+        cssClass: func.color ? "curve" : `curve ${curvePaletteClass}`,
         fixed: true,
         highlight: false,
-        strokeColor: func.color || "#0000FF", // Use function's color or default to blue
+        ...(func.color ? { strokeColor: func.color } : {}),
       });
 
       // Create endpoints for piecewise functions
@@ -522,15 +526,16 @@ const GraphView = () => {
       }
 
       // Create cursor for this function at last known position (or [0,0])
+      // Without a per-function color the cursor draws in the theme's indicator
+      // color through .cursor-themed.
       const cursor = board.create("point", [initialX, initialY], {
-        cssClass: "functionCursor",
+        cssClass: func.color ? "functionCursor" : "functionCursor cursor-themed",
         name: "",
         size: 5,
         fixed: true,
         highlight: false,
         showInfobox: false,
-        fillColor: func.color || "#0000FF",
-        strokeColor: func.color || "#0000FF"
+        ...(func.color ? { fillColor: func.color, strokeColor: func.color } : {}),
       });
 
       // Store references
@@ -1097,8 +1102,8 @@ const GraphView = () => {
         transition: 'border-color 0.2s ease'
       }}
       onFocus={(e) => {
-        e.target.style.borderColor = 'var(--color-primary)';
-        e.target.style.boxShadow = '0 0 0 2px var(--color-primary)';
+        e.target.style.borderColor = 'var(--af-primary)';
+        e.target.style.boxShadow = '0 0 0 2px var(--af-primary)';
       }}
       onBlur={(e) => {
         e.target.style.borderColor = 'transparent';

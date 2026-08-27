@@ -1,0 +1,354 @@
+/* Theming runs through `--cp-*` custom properties, each with a literal fallback:
+ *
+ *   :root {
+ *     --cp-bg: var(--my-surface);
+ *     --cp-accent: var(--my-brand);
+ *   }
+ */
+
+/* Out of the layout, kept in the accessibility tree. `display: none` or
+   `visibility: hidden` would mute the live regions. */
+.cp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Full-screen overlay. The blur sits on the <dialog> rather than ::backdrop, which
+   Firefox only supports from v122 and still with gaps. Clicks on the transparent
+   area reach the dialog element and are handled by the onClick guard in JSX.
+
+   This rule also holds the exit timing: a transition is governed by the rule for the
+   state the element moves into, so leaving is defined here and entering on `[open]`.
+   `display` and `overlay` need `allow-discrete` to animate at all. */
+.cp-dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: var(--cp-backdrop, rgb(240 240 246 / 55%));
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
+  color: var(--cp-text, #6b6375);
+  font: inherit;
+
+  opacity: 0;
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 1, 1),
+    display 150ms allow-discrete,
+    overlay 150ms allow-discrete;
+}
+
+/* Scoped to [open], otherwise `display` overrides the browser's `display: none`. */
+.cp-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 1;
+  transition:
+    opacity 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    display 200ms allow-discrete,
+    overlay 200ms allow-discrete;
+}
+
+/* Without a declared starting point there is nothing to animate from when the
+   element enters the top layer. Unsupported browsers show it at once. */
+@starting-style {
+  .cp-dialog[open] {
+    opacity: 0;
+  }
+}
+
+/* showModal() still creates the native backdrop; keep it transparent so it does not
+   double up the tint. */
+.cp-dialog::backdrop {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .cp-dialog {
+    background: var(--cp-backdrop, rgb(8 8 12 / 60%));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .cp-dialog {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--cp-backdrop, rgb(240 240 246 / 94%));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  .cp-dialog {
+    background: var(--cp-backdrop, rgb(8 8 12 / 94%));
+  }
+}
+
+/* The visible panel box, a child of the dialog so the dialog can be full-screen. */
+.cp-panel {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  width: min(640px, calc(100vw - 32px));
+  max-height: 60vh;
+  padding: 0;
+  margin: 12vh auto 0;
+  border: 1px solid var(--cp-border, #e5e4e7);
+  border-radius: 12px;
+  background: var(--cp-bg, #fff);
+  color: var(--cp-text, #6b6375);
+  box-shadow: var(
+    --cp-shadow,
+    rgb(0 0 0 / 10%) 0 10px 15px -3px,
+    rgb(0 0 0 / 5%) 0 4px 6px -2px
+  );
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  text-align: start;
+
+  scale: 0.97;
+  translate: 0 -10px;
+  transition:
+    scale 150ms cubic-bezier(0.4, 0, 1, 1),
+    translate 150ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.cp-dialog[open] .cp-panel {
+  scale: 1;
+  translate: 0 0;
+  transition:
+    scale 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    translate 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@starting-style {
+  .cp-dialog[open] .cp-panel {
+    scale: 0.97;
+    translate: 0 -10px;
+  }
+}
+
+.cp-breadcrumb {
+  flex: 0 0 auto;
+  padding: 8px 16px 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.cp-input {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--cp-border, #e5e4e7);
+  background: transparent;
+  color: var(--cp-text-strong, #08060d);
+  font: inherit;
+  font-size: 17px;
+}
+
+.cp-input:focus {
+  outline: none; /* Focus is unambiguous inside the dialog; the list carries the cue. */
+}
+
+/* The palette's only scroll container.
+ *
+ * `min-height` is a floor, not decoration: input and footer above and below cannot
+ * shrink, so without it the list is the one that gives way and collapses to zero at
+ * high zoom. Roughly one option row — enough that the first entry stays readable even
+ * when the footer has to be clipped for it. */
+.cp-list {
+  flex: 1 1 auto;
+  min-height: 3rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+}
+
+.cp-option {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: default;
+}
+
+/* Level changes only. React hands every row a fresh DOM node when the level changes,
+   so the animation restarts on its own. While typing the class is absent.
+
+   Not on the listbox itself: it carries the option ids and `aria-activedescendant`,
+   and rebuilding that node would risk the announcements. */
+@keyframes cp-option-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+/* `backwards` is required: the rows carry a staggered `animation-delay` and would
+   otherwise sit visible during it, then snap to transparent. */
+.cp-option--enter {
+  animation: cp-option-in 190ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* The active option is not focused, so it needs its own marking. Border rather than
+   background alone, so it survives high contrast mode. */
+.cp-option--active {
+  background: var(--cp-accent-bg, rgb(170 59 255 / 10%));
+  box-shadow: inset 0 0 0 2px var(--cp-accent-border, rgb(170 59 255 / 50%));
+  color: var(--cp-text-strong, #08060d);
+}
+
+.cp-option--disabled {
+  opacity: 0.45;
+}
+
+/* Fixed slot so labels line up whether or not an entry has an icon. */
+.cp-option__icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+
+.cp-option__icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cp-option--active .cp-option__icon {
+  opacity: 1;
+}
+
+.cp-option__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 15px;
+}
+
+.cp-option__label {
+  color: var(--cp-text-strong, #08060d);
+}
+
+.cp-match {
+  color: var(--cp-accent, #aa3bff);
+  font-weight: 600;
+}
+
+.cp-trail {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.cp-option__hint {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.cp-kbd {
+  padding: 2px 7px;
+  border: 1px solid var(--cp-border, #e5e4e7);
+  border-radius: 5px;
+  background: var(--cp-surface, #f4f3ec);
+  color: var(--cp-text-strong, #08060d);
+  font-family: var(--cp-mono, ui-monospace, Consolas, monospace);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cp-chevron {
+  opacity: 0.6;
+}
+
+.cp-empty {
+  padding: 20px 16px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.cp-footer {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-top: 1px solid var(--cp-border, #e5e4e7);
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* High zoom and short windows. Two things go wrong there: the 12vh offset plus the
+   60vh cap leave 28vh of the viewport unused, and the footer wraps to a paragraph that
+   no longer fits next to the list.
+
+   So reclaim the height and let the panel scroll instead of the list. Still exactly one
+   scroll container, because the list hands its own off — and nothing is lost, the
+   footer stays reachable rather than being cut off.
+
+   Triggering this too early is harmless: the panel is sized by its content and only
+   scrolls once that content really exceeds the viewport. */
+@media (max-height: 520px) {
+  .cp-panel {
+    max-height: calc(100dvh - 16px);
+    margin: 8px auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .cp-list {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow-y: visible;
+  }
+
+  /* Keeps the search field in view while the panel scrolls. Needs an opaque background
+     — the base rule is transparent and the options would show through.
+
+     `z-index` is not optional either. The rows animate with `translate` and `opacity`,
+     which makes each one a stacking context on par with the sticky field. Same tier
+     means DOM order decides, and the rows come later — icons and hints would scroll
+     across the search field. */
+  .cp-input {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--cp-bg, #fff);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cp-list {
+    scroll-behavior: smooth;
+  }
+}
+
+/* All of the above is decoration — without it the palette just appears instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .cp-dialog,
+  .cp-panel {
+    transition: none;
+  }
+
+  .cp-option--enter {
+    animation: none;
+  }
+}
