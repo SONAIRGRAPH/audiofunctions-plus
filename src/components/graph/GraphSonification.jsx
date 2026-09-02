@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
+import { useKBar, VisualState } from "kbar";
 import { useGraphContext } from "../../context/GraphContext";
 import { useInstruments } from "../../context/InstrumentsContext";
 import { useDialog } from "../../context/DialogContext";
@@ -40,12 +41,15 @@ const GraphSonification = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from isAudioEnabled
+  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from P and overlay mute
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
   const { getInstrumentByName } = useInstruments();
-  const { isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
+  const { isDialogOpen, isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
+  const { visualState } = useKBar((state) => ({ visualState: state.visualState }));
+  const isCommandPaletteOpen = visualState !== VisualState.hidden;
+  const isSonificationPaused = isCommandPaletteOpen || isDialogOpen;
   const instrumentsRef = useRef(new Map()); // Map to store instrument references
   const channelsRef = useRef(new Map()); // Map to store channel references
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
@@ -69,7 +73,8 @@ const GraphSonification = () => {
     channel.connect(mixerGain);
   };
 
-  // Last node before the audio device: mixer groups feed this, isAudioEnabled sets 0/1
+  // Last node before the audio device: mixer groups feed this. P and the
+  // command palette / dialogs only set gain 1/0; the sonification graph keeps running.
   useEffect(() => {
     if (!masterGainRef.current) {
       masterGainRef.current = new Tone.Gain(0).toDestination();
@@ -85,12 +90,12 @@ const GraphSonification = () => {
     };
   }, []);
 
-  // P / isAudioEnabled only mutes the mix; sonification keeps running
   useEffect(() => {
     if (masterGainRef.current) {
-      masterGainRef.current.gain.value = isAudioEnabled ? 1 : 0;
+      const outputOpen = isAudioEnabled && !isSonificationPaused;
+      masterGainRef.current.gain.value = outputOpen ? 1 : 0;
     }
-  }, [isAudioEnabled]);
+  }, [isAudioEnabled, isSonificationPaused]);
 
   // Initialize tick synth
   useEffect(() => {
@@ -317,12 +322,12 @@ const GraphSonification = () => {
     };
   }, [functionDefinitions, getInstrumentByName, forceRecreate]);
 
-  // Recreate the pipeline when an edit dialog closes (not on mount or P toggle)
+  // Recreate the pipeline when an edit dialog closes (not on mount, P toggle, or palette)
   useEffect(() => {
     let timeoutId = null;
-    const isOpen = isEditFunctionDialogOpen || isEditLandmarkDialogOpen;
+    const isEditDialogOpen = isEditFunctionDialogOpen || isEditLandmarkDialogOpen;
 
-    if (wasEditDialogOpenRef.current && !isOpen) {
+    if (wasEditDialogOpenRef.current && !isEditDialogOpen) {
       stopAllTones();
       stopPinkNoise();
 
@@ -331,7 +336,7 @@ const GraphSonification = () => {
       }, 50);
     }
 
-    wasEditDialogOpenRef.current = isOpen;
+    wasEditDialogOpenRef.current = isEditDialogOpen;
 
     return () => {
       if (timeoutId) {
@@ -558,14 +563,9 @@ const GraphSonification = () => {
     }
   };
 
-  // Add a visual indicator when sonification is paused during editing
-  if (isEditFunctionDialogOpen || isEditLandmarkDialogOpen) {
-    // console.log("Sonification paused: Edit dialog is open");
-  }
-
   // Main effect for processing cursor coordinates and triggering sonification
   useEffect(() => {
-    if (isEditFunctionDialogOpen || isEditLandmarkDialogOpen || !cursorCoords) {
+    if (!cursorCoords) {
       stopAllTones();
       stopPinkNoise();
       return;
@@ -786,7 +786,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, isEditFunctionDialogOpen, isEditLandmarkDialogOpen, functionDefinitions, graphBounds, stepSize, explorationMode]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it
@@ -909,11 +909,6 @@ const GraphSonification = () => {
 
   // Check for landmark intersections and play appropriate earcons
   const checkLandmarkIntersections = (cursorCoords) => {
-    // Don't check for landmark intersections if edit-landmark dialog is open
-    if (isEditLandmarkDialogOpen) {
-      return;
-    }
-
     if (!cursorCoords || cursorCoords.length === 0) return;
 
     // X-crossing is zoom-proof; the match window is only used on the first
@@ -945,7 +940,7 @@ const GraphSonification = () => {
         const landmarkKey = `${functionId}_landmark_${landmarkIndex}`;
         const { hit } = resolveLandmarkHit({ prevX, cursorX, landmarkX, matchX });
 
-        if (!hit || isEditLandmarkDialogOpen) return;
+        if (!hit) return;
 
         const lastTriggered = boundaryTriggeredRef.current.get(landmarkKey);
         const now = Date.now();
