@@ -4,16 +4,17 @@ import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, Circl
   ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, BookOpen, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, updateFunctionN, setFunctionInstrumentN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN, findLandmarkByShortcut } from "../../utils/graphObjectOperations";
-import { getScreenPosition, jumpToLandmarkWithToast, addLandmarkAtCursorPosition } from "../../utils/landmarkUtils";
+import { getScreenPosition, jumpToLandmarkWithToast, addLandmarkAtCursorPosition, findLandmarkAtPosition } from "../../utils/landmarkUtils";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
 import { useDialog } from "../../context/DialogContext";
 import { setTheme } from "../../utils/theme";
 import { useZoomBoard, useCenterAtCursor } from "./KeyboardHandler";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
+import { ensureToneStarted } from "../../utils/toneAudio";
 
 export const useDynamicKBarActions = () => {
-  const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart } = useGraphContext();
+  const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart, stepSize } = useGraphContext();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
   const { showInfoToast, showLandmarkToast } = useInfoToast();
@@ -58,11 +59,8 @@ export const useDynamicKBarActions = () => {
 
         // Check if there's a landmark at the current position
         const landmarks = getLandmarksN(functionDefinitions, functionIndex);
-        const epsilon = 0.01; // Small tolerance for floating point comparison
-        const landmarkAtPosition = landmarks.find(landmark =>
-            Math.abs(landmark.x - coord.x) < epsilon &&
-            Math.abs(landmark.y - coord.y) < epsilon
-        );
+        const near = findLandmarkAtPosition(landmarks, Number(coord.x), Number(coord.y), graphBounds, stepSize);
+        const landmarkAtPosition = near.found ? near.landmark : null;
 
         let message = `${functionName}: `;
         if (landmarkAtPosition) {
@@ -197,7 +195,9 @@ export const useDynamicKBarActions = () => {
       setFunctionDefinitions,
       announce,
       showInfoToast,
-      openDialog
+      openDialog,
+      graphBounds,
+      stepSize
     );
   };
 
@@ -219,7 +219,11 @@ export const useDynamicKBarActions = () => {
       shortcut: ["p"],
       keywords: "audio, sound, enable, disable, start, stop, toggle, sonify, sonification, music, tone, mute, unmute, volume, hearing",
       parent: "quick-options",
-      perform: () => {setIsAudioEnabled(prev => !prev); setTimeout(() => focusChart(), 100);},
+      perform: async () => {
+        await ensureToneStarted();
+        setIsAudioEnabled(prev => !prev);
+        setTimeout(() => focusChart(), 100);
+      },
       icon: isAudioEnabled
         ? <VolumeX className="size-5 shrink-0 opacity-70" />
         : <Volume2 className="size-5 shrink-0 opacity-70" />,
@@ -614,7 +618,7 @@ export const useDynamicKBarActions = () => {
   },
 
 
-], [isAudioEnabled, cursorCoords, functionDefinitions, isReadOnly, focusChart, landmarks, activeFunction, activeFunctionIndex]);
+], [isAudioEnabled, cursorCoords, functionDefinitions, isReadOnly, focusChart, landmarks, activeFunction, activeFunctionIndex, graphBounds, stepSize]);
 
   return null;
 };

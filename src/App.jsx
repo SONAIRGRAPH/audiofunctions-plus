@@ -9,24 +9,28 @@ import GraphSonification from './components/graph/GraphSonification';
 import { DialogProvider, useDialog } from './context/DialogContext';
 import Header from './components/ui/Header';
 import { InstrumentsProvider } from './context/InstrumentsContext';
+import { MixerProvider } from './context/MixerContext';
 import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { PaletteActions } from './components/ui/PaletteActions_dyn';
 import { AnnouncementProvider } from './context/AnnouncementContext';
 import { InfoToastProvider } from './context/InfoToastContext';
+import { ensureToneStarted } from './utils/toneAudio';
 
 function App() {
   return (
     <InstrumentsProvider>
-      <GraphContextProvider>
-        <AnnouncementProvider>
-          <InfoToastProvider>
-            <DialogProvider>
-              <KeyboardHandler />
-              <AppContent />
-            </DialogProvider>
-          </InfoToastProvider>
-        </AnnouncementProvider>
-      </GraphContextProvider>
+      <MixerProvider>
+        <GraphContextProvider>
+          <AnnouncementProvider>
+            <InfoToastProvider>
+              <DialogProvider>
+                <KeyboardHandler />
+                <AppContent />
+              </DialogProvider>
+            </InfoToastProvider>
+          </AnnouncementProvider>
+        </GraphContextProvider>
+      </MixerProvider>
     </InstrumentsProvider>
   );
 }
@@ -64,9 +68,10 @@ const KBarWrapper = () => {
   // needed to wrap actions into GraphContextProvider
   const { setIsAudioEnabled, focusChart } = useGraphContext();
 
-  const handleSkipActivate = (e) => {
+  const handleSkipActivate = async (e) => {
     // Enable audio and focus the chart just like pressing "P"
     if (e) e.preventDefault();
+    await ensureToneStarted();
     setIsAudioEnabled((prev) => (prev ? prev : true));
     // Ensure focus after enabling audio
     setTimeout(() => {

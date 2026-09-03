@@ -3,6 +3,7 @@ import { useGraphContext } from "../../context/GraphContext";
 import { getActiveFunctions, getFunctionNameN, findLandmarkByShortcut, getLandmarksN } from "../../utils/graphObjectOperations";
 import { addLandmarkAtCursorPosition, jumpToLandmarkWithToast, getScreenPosition } from "../../utils/landmarkUtils";
 import audioSampleManager from "../../utils/audioSamples";
+import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
 import { useDialog } from "../../context/DialogContext";
@@ -100,7 +101,6 @@ export default function KeyboardHandler() {
         setExplorationMode,
         PlayFunction,
         mouseTimeoutRef,
-        isAudioEnabled,
         setIsShiftPressed,
         graphBounds
     } = useGraphContext();
@@ -288,6 +288,8 @@ export default function KeyboardHandler() {
                 return;
             }
 
+            await ensureToneStarted();
+
             pressedKeys.current.add(event.key.toLowerCase());
 
             // Track Shift key state
@@ -309,7 +311,9 @@ export default function KeyboardHandler() {
                     setFunctionDefinitions,
                     announce,
                     showInfoToast,
-                    openDialog
+                    openDialog,
+                    graphBounds,
+                    stepSize
                 );
                 return;
             }
@@ -489,7 +493,7 @@ export default function KeyboardHandler() {
                             } else {
                                 sl = l.filter(e => (NewX < e) && (e < CurrentX));
                             }
-                            if (sl.length > 0 && isAudioEnabled) {
+                            if (sl.length > 0) {
                                 try {
                                     await audioSampleManager.playSample("notification", { volume: -15 });
                                 } catch (error) {
@@ -576,7 +580,7 @@ export default function KeyboardHandler() {
         document.removeEventListener("keydown", handleKeyDown);
         document.removeEventListener("keyup", handleKeyUp);
       };
-    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, isAudioEnabled, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings]);
+    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings]);
 
     return null;
 }

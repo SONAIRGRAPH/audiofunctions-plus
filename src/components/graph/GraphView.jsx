@@ -4,7 +4,8 @@ import { useGraphContext } from "../../context/GraphContext";
 import { create, all, forEach } from 'mathjs'
 import { checkMathSpell, transformAssingnments, transformMathConstants, functionDefPiecewiseToString } from "../../utils/parse";
 import { getActiveFunctions, getLandmarksN, getFunctionInstrumentN } from "../../utils/graphObjectOperations";
-import * as Tone from "tone";
+import { clampX, boundaryWindows } from "../../utils/boundaryGeometry";
+import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInstruments } from "../../context/InstrumentsContext";
 import { InstrumentFrequencyType } from "../../config/instruments";
@@ -146,7 +147,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -544,7 +545,7 @@ const GraphView = () => {
       // Guard against board not being initialized
       if (!board || !board.jc) {
         console.warn("Board or board.jc not available for cursor update");
-        return;
+        return { x, blocked: null };
       }
 
       // Retrieve points of interest for snapping
@@ -558,18 +559,18 @@ const GraphView = () => {
       });
 
       const sl = l.filter(e => Math.abs(e-x) < snapaccuracy);
-      let snappedX = sl.length > 0 ? sl[0] : x;
+      const requestedX = sl.length > 0 ? sl[0] : x;
 
-      // Clamp x position to prevent crossing chart boundaries
-      const tolerance = 0.02; // Same tolerance as in GraphSonification
-      if (snappedX <= graphBounds.xMin + tolerance) {
-        snappedX = graphBounds.xMin + tolerance;
-      } else if (snappedX >= graphBounds.xMax - tolerance) {
-        snappedX = graphBounds.xMax - tolerance;
-      }
+      // Keep the cursor inside the chart. `blockedEdge` records which border the
+      // caller tried to cross, so the sonification can react to the attempt itself
+      // rather than having to recognise the resulting position.
+      const { x: snappedX, blocked: blockedEdge } = clampX(requestedX, graphBounds);
 
       // Store the current position immediately
       lastCursorPositionRef.current = { x: snappedX };
+
+      // Off-screen parking spot for cursors whose function has no value here
+      const offscreenY = graphBounds.yMax + (graphBounds.yMax - graphBounds.yMin);
 
       // Update all active cursors
       const cursorPositions = [];
@@ -581,37 +582,34 @@ const GraphView = () => {
         if (cursor && graphObject && parsedExpr) {
           try {
             const y = board.jc.snippet(parsedExpr, true, "x", true)(snappedX);
-            // Check if y is a valid number
+            // Coordinates are published at full precision: rounding them here used to
+            // make them coarser than the border detection window at close zoom levels.
+            // Consumers round for display. y is deliberately left unclamped, vertical
+            // exits are reported by the no_y earcon instead.
             if (typeof y === 'number' && !isNaN(y) && isFinite(y)) {
-              // Clamp y position to prevent crossing vertical boundaries
-              // let clampedY = y;
-              // if (clampedY <= graphBounds.yMin + tolerance) {
-              //   clampedY = graphBounds.yMin + tolerance;
-              // } else if (clampedY >= graphBounds.yMax - tolerance) {
-              //   clampedY = graphBounds.yMax - tolerance;
-              // }
-
               // Show cursor and update position
               cursor.show();
               cursor.setPositionDirectly(JXG.COORDS_BY_USER, [snappedX, y]);
               cursorPositions.push({
                 functionId: func.id,
-                x: snappedX.toFixed(2),
-                y: y.toFixed(2),
-                mouseY: mouseY !== null ? mouseY.toFixed(2) : null
+                x: snappedX,
+                y: y,
+                blockedEdge: blockedEdge,
+                mouseY: mouseY
               });
             } else {
               console.warn(`Invalid y value for function ${func.id} at x=${snappedX}: ${y}`); // TODO That happens for "non-functions" -> maybe we should delete the warning?
               // Hide cursor visually but still pass the invalid y value for sonification
               cursor.hide();
               // Position cursor at a point outside the visible area when function is invalid
-              cursor.setPositionDirectly(JXG.COORDS_BY_USER, [snappedX, graphBounds.yMax + 10]);
+              cursor.setPositionDirectly(JXG.COORDS_BY_USER, [snappedX, offscreenY]);
               // Still pass the invalid y value to cursor positions for sonification detection
               cursorPositions.push({
                 functionId: func.id,
-                x: snappedX.toFixed(2),
-                y: y.toString(), // Pass the invalid y value as string to preserve NaN/undefined
-                mouseY: mouseY !== null ? mouseY.toFixed(2) : null
+                x: snappedX,
+                y: y,
+                blockedEdge: blockedEdge,
+                mouseY: mouseY
               });
             }
           } catch (err) {
@@ -619,7 +617,7 @@ const GraphView = () => {
             // Hide cursor but still update its position to keep exploration moving
             cursor.hide();
             // Position cursor at a point outside the visible area when function is invalid
-            cursor.setPositionDirectly(JXG.COORDS_BY_USER, [snappedX, graphBounds.yMax + 10]);
+            cursor.setPositionDirectly(JXG.COORDS_BY_USER, [snappedX, offscreenY]);
           }
         }
       });
@@ -645,13 +643,15 @@ const GraphView = () => {
       board.update();
 
       // --- X axis tick logic (track last ticked index, no epsilon, not reset on resume) ---
-      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isAudioEnabled) {
+      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x)) {
         let n = Math.floor(x / stepSize);
         if (n !== lastTickIndexRef.current) {
           // tickSynth.triggerAttackRelease("C6", "16n"); // Removed tick synth
           lastTickIndexRef.current = n;
         }
       }
+
+      return { x: snappedX, blocked: blockedEdge };
     };
     setUpdateCursor(() => updateCursors);
 
@@ -711,7 +711,7 @@ const GraphView = () => {
 
           if (instrumentConfig && instrumentConfig.instrumentType === InstrumentFrequencyType.discretePitchClassBased) {
             const direction = PlayFunction.speed >= 0 ? 1 : -1;
-            const tolerance = 0.02;
+            const tolerance = boundaryWindows(graphBounds).insetX;
             const minMove = stepSize;
             const dx = stepSize / 10;
 
@@ -864,36 +864,21 @@ const GraphView = () => {
         }
         PlayFunction.x += ((graphBounds.xMax - graphBounds.xMin) / (1000 / PlayFunction.interval)) * (actualSpeed / 100);
 
-        // Clamp PlayFunction.x to prevent crossing boundaries
-        const tolerance = 0.02;
-        if (PlayFunction.x <= graphBounds.xMin + tolerance) {
-          PlayFunction.x = graphBounds.xMin + tolerance;
-        } else if (PlayFunction.x >= graphBounds.xMax - tolerance) {
-          PlayFunction.x = graphBounds.xMax - tolerance;
-        }
-
-        updateCursors(PlayFunction.x);
+        // updateCursors owns the clamping, so the border it reports is authoritative
+        const { x: reachedX, blocked } = updateCursors(PlayFunction.x);
+        PlayFunction.x = reachedX;
 
         // Stop play function if we've reached the boundaries
         // For batch sonification, only stop when reaching the opposite boundary
-        if (PlayFunction.source === "play") {
-          // For batch sonification, stop when reaching the right boundary (if speed > 0) or left boundary (if speed < 0)
-          const shouldStop = (PlayFunction.speed > 0 && PlayFunction.x >= graphBounds.xMax - tolerance) ||
-                           (PlayFunction.speed < 0 && PlayFunction.x <= graphBounds.xMin + tolerance);
-          if (shouldStop) {
-            clearInterval(currentTimerRef.current);
-            currentTimerRef.current = null;
-            setPlayFunction(prev => ({ ...prev, active: false }));
-            setExplorationMode("none");
-          }
-        } else {
-          // For keyboard exploration, stop at either boundary
-          if ((PlayFunction.x >= graphBounds.xMax - tolerance) || (PlayFunction.x <= graphBounds.xMin + tolerance)) {
-            clearInterval(currentTimerRef.current);
-            currentTimerRef.current = null;
-            setPlayFunction(prev => ({ ...prev, active: false }));
-            setExplorationMode("none");
-          }
+        const shouldStop = PlayFunction.source === "play"
+          ? (PlayFunction.speed > 0 ? blocked === "right" : blocked === "left")
+          : blocked !== null;
+
+        if (shouldStop) {
+          clearInterval(currentTimerRef.current);
+          currentTimerRef.current = null;
+          setPlayFunction(prev => ({ ...prev, active: false }));
+          setExplorationMode("none");
         }
       }, PlayFunction.interval);
     } else {
@@ -1091,6 +1076,9 @@ const GraphView = () => {
       onFocus={(e) => {
         e.target.style.borderColor = 'var(--color-primary)';
         e.target.style.boxShadow = '0 0 0 2px var(--color-primary)';
+      }}
+      onPointerDown={() => {
+        ensureToneStarted();
       }}
       onBlur={(e) => {
         e.target.style.borderColor = 'transparent';

@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { useGraphContext } from "../../context/GraphContext";
 import { Play } from "lucide-react";
+import { ensureToneStarted } from "../../utils/toneAudio";
 
 const GraphControls = () => {
   
@@ -36,7 +37,10 @@ const GraphControls = () => {
       </span>
       {error && <div style={{ color: "red", marginTop: "10px" }}>{error}</div>}
       <button
-        onClick={() => setIsAudioEnabled((prev) => !prev)}
+          onClick={async () => {
+            await ensureToneStarted();
+            setIsAudioEnabled((prev) => !prev);
+          }}
         style={{
           marginLeft: "10px",
           padding: "5px 10px",

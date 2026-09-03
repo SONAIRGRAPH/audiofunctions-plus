@@ -2,6 +2,7 @@ import React from "react";
 import { useKBar } from "kbar";
 import { Wand, Volume2, VolumeX } from "lucide-react";
 import { useGraphContext } from "../../context/GraphContext";
+import { ensureToneStarted } from "../../utils/toneAudio";
 
 /**
  * Header component for the application
@@ -11,7 +12,8 @@ const Header = () => {
   const { query } = useKBar();
   const { isAudioEnabled, setIsAudioEnabled, focusChart } = useGraphContext();
 
-  const toggleAudio = () => {
+  const toggleAudio = async () => {
+    await ensureToneStarted();
     setIsAudioEnabled(prev => !prev);
   };
 

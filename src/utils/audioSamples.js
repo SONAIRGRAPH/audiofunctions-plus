@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../audio/mixerBus";
 
 class AudioSampleManager {
   constructor() {
@@ -7,17 +8,39 @@ class AudioSampleManager {
     this.isInitialized = false;
   }
 
-  // Initialize the audio context
+  // Prepare the sample manager. Do not call Tone.start() here: that must happen
+  // from a user gesture (see ensureToneStarted).
   async initialize() {
     if (this.isInitialized) return;
+    this.isInitialized = true;
+  }
 
-    try {
-      await Tone.start();
-      this.isInitialized = true;
-      // console.log("AudioSampleManager initialized");
-    } catch (error) {
-      console.error("Failed to initialize AudioSampleManager:", error);
+  _connectPlayerToMixer(sampleName, player, panner) {
+    const channelId = MIXER_CHANNELS.sample(sampleName);
+    const gain = mixerBus.ensureChannel(
+      channelId,
+      MIXER_GROUPS.earcons,
+      sampleName
+    );
+    player.disconnect();
+    if (panner) {
+      panner.disconnect();
+      player.connect(panner);
+      panner.connect(gain);
+    } else {
+      player.connect(gain);
     }
+  }
+
+  /**
+   * Re-attach all loaded players to the mixer (e.g. after master-gain / group rebuild).
+   */
+  reconnectAllToMixer() {
+    this.samples.forEach((sample, sampleName) => {
+      if (sample?.player) {
+        this._connectPlayerToMixer(sampleName, sample.player, sample.panner);
+      }
+    });
   }
 
   // Load an audio sample from the public/audio-samples folder
@@ -35,12 +58,16 @@ class AudioSampleManager {
 
       const samplePath = `/audio-samples/${filename}`;
 
-      // Create a new player
-      const player = new Tone.Player().toDestination();
+      // Player → stereo panner → earcons mixer. Pan defaults to center;
+      // cursor-related earcons set it per playback to match instrument sonification.
+      const player = new Tone.Player();
+      const panner = new Tone.Panner(0);
+      this._connectPlayerToMixer(sampleName, player, panner);
 
       // Store both the player and metadata
       this.samples.set(sampleName, {
         player,
+        panner,
         filename,
         path: samplePath,
         loaded: false
@@ -58,8 +85,13 @@ class AudioSampleManager {
 
     } catch (error) {
       console.error(`Failed to load audio sample ${sampleName}:`, error);
-      // Remove from samples if loading failed
+      const failed = this.samples.get(sampleName);
+      if (failed) {
+        try { failed.player?.dispose(); } catch (_) { /* ignore */ }
+        try { failed.panner?.dispose(); } catch (_) { /* ignore */ }
+      }
       this.samples.delete(sampleName);
+      mixerBus.removeChannel(MIXER_CHANNELS.sample(sampleName));
     }
   }
 
@@ -107,6 +139,11 @@ class AudioSampleManager {
         return;
       }
 
+      // Re-attach to mixer in case the bus was rebuilt after master-gain init
+      if (!mixerBus.hasChannel(MIXER_CHANNELS.sample(sampleName))) {
+        this._connectPlayerToMixer(sampleName, player, sample.panner);
+      }
+
       // Apply options
       if (options.volume !== undefined) {
         player.volume.value = options.volume;
@@ -114,6 +151,16 @@ class AudioSampleManager {
 
       if (options.playbackRate !== undefined) {
         player.playbackRate = options.playbackRate;
+      }
+
+      // Same stereo range as Tone.Channel used by the instrument / tick sonification
+      if (sample.panner) {
+        const pan = options.pan;
+        if (typeof pan === "number" && Number.isFinite(pan)) {
+          sample.panner.pan.value = Math.max(-1, Math.min(1, pan));
+        } else {
+          sample.panner.pan.value = 0;
+        }
       }
 
       // Use a simple approach: stop any current playback and start fresh
@@ -208,6 +255,14 @@ class AudioSampleManager {
           console.error(`Failed to dispose audio sample ${name}:`, error);
         }
       }
+      if (sample.panner) {
+        try {
+          sample.panner.dispose();
+        } catch (error) {
+          console.error(`Failed to dispose panner for audio sample ${name}:`, error);
+        }
+      }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.sample(name));
     });
 
     this.samples.clear();

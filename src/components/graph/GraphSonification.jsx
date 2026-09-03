@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
+import { useKBar, VisualState } from "kbar";
 import { useGraphContext } from "../../context/GraphContext";
 import { useInstruments } from "../../context/InstrumentsContext";
 import { useDialog } from "../../context/DialogContext";
@@ -14,6 +15,9 @@ import {
 } from "../../utils/graphObjectOperations";
 import audioSampleManager from "../../utils/audioSamples";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
+import { horizontalEdge, resolveBorderEvent } from "../../utils/boundaryGeometry";
+import { landmarkWindows, resolveLandmarkHit, LANDMARK_COOLDOWN_MS } from "../../utils/landmarkGeometry";
+import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../../audio/mixerBus";
 
 const GraphSonification = () => {
   const {
@@ -33,29 +37,66 @@ const GraphSonification = () => {
   const prevXSignRef = useRef(new Map()); // Track previous x coordinate signs for y-axis intersection
   const boundaryTriggeredRef = useRef(new Map()); // Track if boundary event was recently triggered to avoid spam
   const yAxisTriggeredRef = useRef(new Map()); // Track if y-axis intersection was recently triggered
-  const prevBoundaryStateRef = useRef(new Map()); // Track previous boundary state for each function
   const prevLandmarkPositionsRef = useRef(new Map()); // Track previous cursor positions for landmark crossing detection
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const isAtBoundaryRef = useRef(false); // Track if cursor is at a boundary
-  const masterGainRef = useRef(null); // Reference to master gain node for discrete batch sonification control
-  const chartBorderLastPlayedRef = useRef(0); // Global cooldown for chart border earcon
-  const mouseBoundaryStateRef = useRef({ left: false, right: false, bottom: false, top: false }); // Aggregated mouse boundary state
-  const lastMouseXRef = useRef(null); // Track last mouse X for direction in mouse exploration
+  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from P and overlay mute
+  const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
+  const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
   const { getInstrumentByName } = useInstruments();
-  const { isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
+  const { isDialogOpen, isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
+  const { visualState } = useKBar((state) => ({ visualState: state.visualState }));
+  const isCommandPaletteOpen = visualState !== VisualState.hidden;
+  const isSonificationPaused = isCommandPaletteOpen || isDialogOpen;
   const instrumentsRef = useRef(new Map()); // Map to store instrument references
   const channelsRef = useRef(new Map()); // Map to store channel references
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
   const [forceRecreate, setForceRecreate] = useState(false); // State to force recreation of sonification pipeline
-  const batchTickCountRef = useRef(0); // Track tick count since batch exploration started
+  const wasEditDialogOpenRef = useRef(false); // Detect edit-dialog close (not initial mount)
   const batchResetDoneRef = useRef(false); // Track if batch reset has been done
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
-  const wasAtLeftBoundaryRef = useRef(false); // Track if cursor was at left boundary in previous tick
+  const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
+  const prevAudioEnabledRef = useRef(isAudioEnabled);
+  const NO_Y_VOLUME_DB = -25;
+
+  // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
+  const connectInstrumentChannelToMixer = (functionId, channel, label) => {
+    const mixerGain = mixerBus.ensureChannel(
+      MIXER_CHANNELS.instrument(functionId),
+      MIXER_GROUPS.instruments,
+      label || `Instrument ${functionId}`
+    );
+    channel.disconnect();
+    channel.connect(mixerGain);
+  };
+
+  // Last node before the audio device: mixer groups feed this. P and the
+  // command palette / dialogs only set gain 1/0; the sonification graph keeps running.
+  useEffect(() => {
+    if (!masterGainRef.current) {
+      masterGainRef.current = new Tone.Gain(0).toDestination();
+      mixerBus.initialize(masterGainRef.current);
+      audioSampleManager.reconnectAllToMixer();
+    }
+
+    return () => {
+      if (masterGainRef.current) {
+        masterGainRef.current.dispose();
+        masterGainRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (masterGainRef.current) {
+      const outputOpen = isAudioEnabled && !isSonificationPaused;
+      masterGainRef.current.gain.value = outputOpen ? 1 : 0;
+    }
+  }, [isAudioEnabled, isSonificationPaused]);
 
   // Initialize tick synth
   useEffect(() => {
@@ -78,12 +119,12 @@ const GraphSonification = () => {
         volume: 0
       });
 
-      // Connect to master gain if available, otherwise to destination
-      if (masterGainRef.current) {
-        tickChannelRef.current.connect(masterGainRef.current);
-      } else {
-        tickChannelRef.current.toDestination();
-      }
+      const tickMixerGain = mixerBus.ensureChannel(
+        MIXER_CHANNELS.tick,
+        MIXER_GROUPS.earcons,
+        "Tick"
+      );
+      tickChannelRef.current.connect(tickMixerGain);
 
       // Connect tick synth to its channel
       tickSynthRef.current.connect(tickChannelRef.current);
@@ -99,14 +140,21 @@ const GraphSonification = () => {
         tickChannelRef.current.dispose();
         tickChannelRef.current = null;
       }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.tick);
     };
   }, []);
 
   // Initialize pink noise synthesizer
   useEffect(() => {
     if (!pinkNoiseRef.current) {
-      pinkNoiseRef.current = new Tone.Noise("pink").toDestination();
+      pinkNoiseRef.current = new Tone.Noise("pink");
       pinkNoiseRef.current.volume.value = -36; // dB - low volume background sound
+      const noiseMixerGain = mixerBus.ensureChannel(
+        MIXER_CHANNELS.pinkNoise,
+        MIXER_GROUPS.noise,
+        "Pink noise"
+      );
+      pinkNoiseRef.current.connect(noiseMixerGain);
     }
 
     return () => {
@@ -114,45 +162,17 @@ const GraphSonification = () => {
         pinkNoiseRef.current.dispose();
         pinkNoiseRef.current = null;
       }
+      mixerBus.disposeChannelAudio(MIXER_CHANNELS.pinkNoise);
     };
   }, []);
 
-  // Initialize master gain node for discrete batch sonification control
-  useEffect(() => {
-    if (!masterGainRef.current) {
-      masterGainRef.current = new Tone.Gain(1).toDestination();
-
-      // Reconnect all existing channels to master gain
-      channelsRef.current.forEach((channel) => {
-        channel.disconnect();
-        channel.connect(masterGainRef.current);
-      });
-
-      // Reconnect tick channel if it exists
-      if (tickChannelRef.current) {
-        tickChannelRef.current.disconnect();
-        tickChannelRef.current.connect(masterGainRef.current);
-      }
-    }
-
-    return () => {
-      if (masterGainRef.current) {
-        masterGainRef.current.dispose();
-        masterGainRef.current = null;
-      }
-    };
-  }, []);
-
-  // Initialize audio sample manager and landmark earcons
+  // Prepare sample and landmark playback. The Web Audio context is started later
+  // from a user gesture (ensureToneStarted), not on mount.
   useEffect(() => {
     const initializeAudioSystems = async () => {
       try {
-        // Wait for Tone.js to be fully initialized
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         await audioSampleManager.initialize();
         await landmarkEarconManager.initialize();
-        // console.log("Audio systems initialized (samples and landmark earcons)");
       } catch (error) {
         console.error("Failed to initialize audio systems:", error);
       }
@@ -173,9 +193,10 @@ const GraphSonification = () => {
     if (forceRecreate) {
       // console.log("Forcing recreation of channels");
 
-      // Dispose all existing channels
-      channelsRef.current.forEach(channel => {
+      // Dispose all existing channels (keep mixer mute/volume state)
+      channelsRef.current.forEach((channel, functionId) => {
         channel.dispose();
+        mixerBus.disposeChannelAudio(MIXER_CHANNELS.instrument(functionId));
       });
       channelsRef.current.clear();
     }
@@ -190,16 +211,13 @@ const GraphSonification = () => {
           volume: 0
         });
 
-        // Connect to master gain node if available, otherwise to destination
-        if (masterGainRef.current) {
-          channel.connect(masterGainRef.current);
-        } else {
-          channel.toDestination();
-        }
+        // Route through dedicated mixer gain → instruments group → master
+        const label = func.functionName || func.instrument || `Instrument ${functionId}`;
+        connectInstrumentChannelToMixer(functionId, channel, label);
 
         channelsRef.current.set(functionId, channel);
       } else {
-        // Update existing channel's mute state
+        // Update existing channel's mute state (function visibility, not mixer mute)
         const channel = channelsRef.current.get(functionId);
         if (channel) {
           channel.mute = !isFunctionActiveN(functionDefinitions, index);
@@ -216,13 +234,16 @@ const GraphSonification = () => {
           channel.dispose();
         }
         channelsRef.current.delete(functionId);
+        mixerBus.removeChannel(MIXER_CHANNELS.instrument(functionId));
       }
     });
 
     return () => {
-      channelsRef.current.forEach(channel => {
+      channelsRef.current.forEach((channel, functionId) => {
         channel.disconnect();
         channel.dispose();
+        // Keep mixer state across React effect re-runs; drop only Tone nodes
+        mixerBus.disposeChannelAudio(MIXER_CHANNELS.instrument(functionId));
       });
       channelsRef.current.clear();
     };
@@ -246,7 +267,6 @@ const GraphSonification = () => {
       lastPitchClassesRef.current.clear();
 
       // Reset batch exploration tracking
-      batchTickCountRef.current = 0;
       batchResetDoneRef.current = false;
 
       // Reset the flag
@@ -288,8 +308,6 @@ const GraphSonification = () => {
       }
     });
 
-    Tone.start();
-
     return () => {
       instrumentsRef.current.forEach(instrument => {
         if (instrument.dispose) {
@@ -300,34 +318,32 @@ const GraphSonification = () => {
     };
   }, [functionDefinitions, getInstrumentByName, forceRecreate]);
 
-  // Clean up sonification when edit dialog closes
+  // Recreate the pipeline when an edit dialog closes (not on mount, P toggle, or palette)
   useEffect(() => {
     let timeoutId = null;
+    const isEditDialogOpen = isEditFunctionDialogOpen || isEditLandmarkDialogOpen;
 
-    if (!isEditFunctionDialogOpen && !isEditLandmarkDialogOpen && isAudioEnabled) {
-      // When edit dialog closes, force recreation of the entire sonification pipeline
-      // console.log("Sonification resumed: Edit dialog closed - forcing pipeline recreation");
-
-      // Stop all current tones and clear references immediately
+    if (wasEditDialogOpenRef.current && !isEditDialogOpen) {
       stopAllTones();
       stopPinkNoise();
 
-      // Force recreation with a small delay to ensure state updates are complete
       timeoutId = setTimeout(() => {
         setForceRecreate(true);
       }, 50);
     }
+
+    wasEditDialogOpenRef.current = isEditDialogOpen;
 
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     };
-  }, [isEditFunctionDialogOpen, isEditLandmarkDialogOpen, isAudioEnabled]);
+  }, [isEditFunctionDialogOpen, isEditLandmarkDialogOpen]);
 
   // Reset lastPitchClass for functions that just became active (for discrete sonification)
   useEffect(() => {
-    if (!isAudioEnabled || isEditFunctionDialogOpen) return;
+    if (isEditFunctionDialogOpen) return;
 
     // Get currently active function IDs
     const activeFunctionIds = new Set(
@@ -349,7 +365,7 @@ const GraphSonification = () => {
 
     // Update the previous active function IDs (create a new Set to avoid mutation issues)
     prevActiveFunctionIdsRef.current = new Set(activeFunctionIds);
-  }, [functionDefinitions, isAudioEnabled, isEditFunctionDialogOpen]);
+  }, [functionDefinitions, isEditFunctionDialogOpen]);
 
   // Clean up tracking refs when functions change
   useEffect(() => {
@@ -375,13 +391,6 @@ const GraphSonification = () => {
       const functionId = key.split('_')[0]; // Extract functionId from boundary key
       if (!currentFunctionIds.has(functionId)) {
         boundaryTriggeredRef.current.delete(key);
-      }
-    });
-
-    // Clean up prevBoundaryStateRef
-    Array.from(prevBoundaryStateRef.current.keys()).forEach(functionId => {
-      if (!currentFunctionIds.has(functionId)) {
-        prevBoundaryStateRef.current.delete(functionId);
       }
     });
 
@@ -550,21 +559,26 @@ const GraphSonification = () => {
     }
   };
 
-  // Add a visual indicator when sonification is paused during editing
-  if ((isEditFunctionDialogOpen || isEditLandmarkDialogOpen) && isAudioEnabled) {
-    // console.log("Sonification paused: Edit dialog is open");
-  }
-
   // Main effect for processing cursor coordinates and triggering sonification
   useEffect(() => {
-    if (!isAudioEnabled || isEditFunctionDialogOpen || isEditLandmarkDialogOpen || !cursorCoords) {
+    if (!cursorCoords) {
       stopAllTones();
       stopPinkNoise();
       return;
     }
 
+    // Unmute (P) should replay the current pitch; discrete mode otherwise skips
+    // an unchanged pitch class and would stay silent after a suspended-context start.
+    if (isAudioEnabled && !prevAudioEnabledRef.current) {
+      lastPitchClassesRef.current.clear();
+    }
+    prevAudioEnabledRef.current = isAudioEnabled;
+
+    const isBatchPlayback =
+      PlayFunction.active && PlayFunction.source === "play";
+
     // Reset pitch classes when batch exploration starts
-    if (explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play") {
+    if (isBatchPlayback) {
       // Reset last pitch classes every time batch exploration starts
       // This ensures that even if the same pitch would be played, it gets played again in a new batch
       if (!batchResetDoneRef.current) {
@@ -573,51 +587,50 @@ const GraphSonification = () => {
         // Reset y-axis intersection tracking for batch mode
         prevXSignRef.current.clear();
         yAxisTriggeredRef.current.clear();
-        batchTickCountRef.current = 0;
         batchResetDoneRef.current = true;
         // Reset batch start earcon tracking
         batchStartEarconPlayedRef.current = false;
-        wasAtLeftBoundaryRef.current = false;
+        // Playback starts parked on one edge; pre-seed it so the border earcon is not
+        // fired for a position the user did not navigate to. Leaving that edge is
+        // announced by chart_border_start instead.
+        borderEdgeRef.current = PlayFunction.speed > 0 ? "left" : "right";
+        wasAtBatchStartEdgeRef.current = true;
+        chartBorderLastPlayedRef.current = Date.now();
       }
     } else {
       // Reset flags when not in batch mode or when batch stops
       batchResetDoneRef.current = false;
-      batchTickCountRef.current = 0;
       batchStartEarconPlayedRef.current = false;
-      wasAtLeftBoundaryRef.current = false;
+      wasAtBatchStartEdgeRef.current = false;
     }
 
-    // Control master gain based on cursor position vs valid start position for discrete batch sonification
-    if (masterGainRef.current) {
-      if (discreteBatchValidStartX !== null && cursorCoords && cursorCoords.length > 0 &&
-          explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play") {
-        // Get the current cursor X position (use first coordinate as reference)
-        const currentX = parseFloat(cursorCoords[0].x);
+    // Discrete batch: silence instruments only until the valid start X.
+    // Earcons / ticks / noise stay audible (they used to share masterGain and
+    // were incorrectly muted for the whole lead-in).
+    if (
+      discreteBatchValidStartX !== null &&
+      cursorCoords &&
+      cursorCoords.length > 0 &&
+      explorationMode === "batch" &&
+      PlayFunction.active &&
+      PlayFunction.source === "play"
+    ) {
+      const currentX = parseFloat(cursorCoords[0].x);
 
-        if (typeof currentX === 'number' && !isNaN(currentX) && isFinite(currentX)) {
-          // Determine direction based on PlayFunction speed
-          const direction = PlayFunction.speed >= 0 ? 1 : -1;
-
-          // Calculate gain: 0 if before valid start, 1 if at or after
-          let gainValue = 1;
-          if (direction > 0) {
-            // Moving forward: gain is 0 if currentX < validStartX
-            gainValue = currentX >= discreteBatchValidStartX ? 1 : 0;
-          } else {
-            // Moving backward: gain is 0 if currentX > validStartX
-            gainValue = currentX <= discreteBatchValidStartX ? 1 : 0;
-          }
-
-          // Set the gain value
-          masterGainRef.current.gain.value = gainValue;
+      if (typeof currentX === "number" && !isNaN(currentX) && isFinite(currentX)) {
+        const direction = PlayFunction.speed >= 0 ? 1 : -1;
+        let gateOpen = true;
+        if (direction > 0) {
+          gateOpen = currentX >= discreteBatchValidStartX;
         } else {
-          // Invalid cursor position, set gain to normal
-          masterGainRef.current.gain.value = 1;
+          gateOpen = currentX <= discreteBatchValidStartX;
         }
+        mixerBus.setInstrumentsGate(gateOpen ? 1 : 0);
       } else {
-        // Not in discrete batch mode or no valid start position, set gain to normal (1)
-        masterGainRef.current.gain.value = 1;
+        mixerBus.setInstrumentsGate(1);
       }
+    } else {
+      mixerBus.setInstrumentsGate(1);
     }
 
     // Check if any active function has a y-value below zero
@@ -626,54 +639,38 @@ const GraphSonification = () => {
       return !isNaN(y) && isFinite(y) && y < 0;
     });
 
-    // Check if any cursor is at a boundary (we need to check this before processing individual coordinates)
-    let isAnyAtBoundary = false;
-    let isAtLeftBoundaryNow = false;
-    for (const coord of cursorCoords) {
-      const x = parseFloat(coord.x);
-      const y = parseFloat(coord.y);
+    // Horizontal borders depend only on x, which every cursor shares, so they are
+    // resolved once per frame rather than once per function.
+    // At batch start, suppress chart_border until the cursor has left the parked
+    // start edge (announced by chart_border_start); then chart_border works again
+    // for the rest of the run, including the opposite end.
+    const suppressStartBorderEarcon =
+      isBatchPlayback && !batchStartEarconPlayedRef.current;
+    const borderEdge = processHorizontalBorder(cursorCoords, {
+      suppressEarcon: suppressStartBorderEarcon
+    });
+    const isAtBorder = borderEdge !== null;
 
-      // Calculate tolerance based on current graph bounds to be more robust with zoom
-      const xRange = graphBounds.xMax - graphBounds.xMin;
-      const yRange = graphBounds.yMax - graphBounds.yMin;
-      const tolerance = Math.max(0.02, Math.min(xRange, yRange) * 0.001); // Adaptive tolerance
-
-      const isAtLeftBoundary = Math.abs(x - (graphBounds.xMin + tolerance)) < tolerance * 0.1;
-      const isAtRightBoundary = Math.abs(x - (graphBounds.xMax - tolerance)) < tolerance * 0.1;
-      const isAtBottomBoundary = Math.abs(y - (graphBounds.yMin + tolerance)) < tolerance * 0.1;
-      const isAtTopBoundary = Math.abs(y - (graphBounds.yMax - tolerance)) < tolerance * 0.1;
-
-      if (isAtLeftBoundary) {
-        isAtLeftBoundaryNow = true;
+    // Check if batch sonification is leaving the start edge (for chart_border_start earcon)
+    if (isBatchPlayback && cursorCoords && cursorCoords.length > 0) {
+      const startEdge = PlayFunction.speed > 0 ? "left" : "right";
+      const isAtStartEdgeNow = borderEdge === startEdge;
+      // If we were at the start edge before and now we're not, play the start earcon once
+      if (wasAtBatchStartEdgeRef.current && !isAtStartEdgeNow && !batchStartEarconPlayedRef.current) {
+        playAudioSample("chart_border_start", {
+          volume: -15,
+          pan: calculatePan(parseFloat(cursorCoords[0].x))
+        });
+        batchStartEarconPlayedRef.current = true;
       }
-
-      if (isAtLeftBoundary || isAtRightBoundary || isAtBottomBoundary || isAtTopBoundary) {
-        isAnyAtBoundary = true;
-        break;
-      }
-    }
-
-    // Check if batch sonification is leaving the left boundary (for chart_border_start earcon)
-    if (explorationMode === "batch" && PlayFunction.active && PlayFunction.source === "play" &&
-        cursorCoords && cursorCoords.length > 0) {
-      // If we were at the left boundary before and now we're not, play the start earcon
-      if (wasAtLeftBoundaryRef.current && !isAtLeftBoundaryNow && !batchStartEarconPlayedRef.current) {
-        // Only play if moving forward (positive speed) - leaving left boundary going right
-        if (PlayFunction.speed > 0) {
-          playAudioSample("chart_border_start", { volume: -15 });
-          batchStartEarconPlayedRef.current = true;
-          // console.log("Batch sonification leaving left boundary - playing chart_border_start.mp3");
-        }
-      }
-      // Update the tracking ref for next tick
-      wasAtLeftBoundaryRef.current = isAtLeftBoundaryNow;
+      wasAtBatchStartEdgeRef.current = isAtStartEdgeNow;
     }
 
     // Check for landmark intersections
     checkLandmarkIntersections(cursorCoords);
 
     // Only start pink noise if there's a negative y value AND not at a boundary
-    if (hasNegativeY && !isAnyAtBoundary) {
+    if (hasNegativeY && !isAtBorder) {
       startPinkNoise();
     } else {
       stopPinkNoise();
@@ -702,7 +699,10 @@ const GraphSonification = () => {
         // Stop all tones before playing the earcon
         stopAllTones();
 
-        playAudioSample("no_y", { volume: -25 });
+        playAudioSample("no_y", {
+          volume: NO_Y_VOLUME_DB,
+          pan: calculatePan(parseFloat(cursorCoords[0].x))
+        });
         boundaryTriggeredRef.current.set('no_visible_functions', now);
         // console.log(`No visible functions in current interval, playing no_y.mp3. cursorCoords:`, cursorCoords);
       }
@@ -716,7 +716,10 @@ const GraphSonification = () => {
         const now = Date.now();
 
         if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown
-          playAudioSample("no_y", { volume: -25 });
+          playAudioSample("no_y", {
+            volume: NO_Y_VOLUME_DB,
+            pan: calculatePan(parseFloat(cursorCoords[0].x))
+          });
           boundaryTriggeredRef.current.set('some_out_of_bounds', now);
           // console.log(`Some functions out of bounds, playing no_y.mp3 while continuing sonification of visible functions. cursorCoords:`, cursorCoords);
         }
@@ -726,87 +729,16 @@ const GraphSonification = () => {
       }
     }
 
-    // Mouse-specific aggregated chart boundary earcon handling
-    if (explorationMode === "mouse" && cursorCoords.length > 0) {
-      // Approximate mouse X from the first cursor (all share same X in exploration)
-      const currentMouseX = parseFloat(cursorCoords[0].x);
-      let deltaX = 0;
-      if (!isNaN(currentMouseX)) {
-        if (lastMouseXRef.current !== null && !isNaN(lastMouseXRef.current)) {
-          deltaX = currentMouseX - lastMouseXRef.current;
-        }
-        lastMouseXRef.current = currentMouseX;
-      }
-
-      const xRange = graphBounds.xMax - graphBounds.xMin;
-      const yRange = graphBounds.yMax - graphBounds.yMin;
-      const xWindow = xRange * 0.01;
-      const yWindow = yRange * 0.01;
-
-      let leftAny = false;
-      let rightAny = false;
-      let bottomAny = false;
-      let topAny = false;
-
-      cursorCoords.forEach(coord => {
-        const x = parseFloat(coord.x);
-        const y = parseFloat(coord.y);
-        if (isNaN(x) || isNaN(y)) return;
-
-        if (x <= graphBounds.xMin + xWindow) leftAny = true;
-        if (x >= graphBounds.xMax - xWindow) rightAny = true;
-        if (y <= graphBounds.yMin + yWindow) bottomAny = true;
-        if (y >= graphBounds.yMax - yWindow) topAny = true;
-      });
-
-      const prevMouseState = mouseBoundaryStateRef.current;
-      const now = Date.now();
-      const globalLastPlayed = chartBorderLastPlayedRef.current;
-      const globalCooldownActive = globalLastPlayed && (now - globalLastPlayed) <= 200;
-
-      let shouldPlay = false;
-
-      if (!globalCooldownActive) {
-        // For left boundary, only play when movement is towards the left (deltaX < 0)
-        if (leftAny && !prevMouseState.left && deltaX < 0) {
-          shouldPlay = true;
-        }
-        // For right boundary, only play when movement is towards the right (deltaX > 0)
-        else if (rightAny && !prevMouseState.right && deltaX > 0) {
-          shouldPlay = true;
-        } else if (bottomAny && !prevMouseState.bottom) {
-          shouldPlay = true;
-        } else if (topAny && !prevMouseState.top) {
-          shouldPlay = true;
-        }
-      }
-
-      if (shouldPlay) {
-        playAudioSample("chart_border", { volume: -20 });
-        chartBorderLastPlayedRef.current = now;
-      }
-
-      mouseBoundaryStateRef.current = {
-        left: leftAny,
-        right: rightAny,
-        bottom: bottomAny,
-        top: topAny
-      };
-    } else {
-      lastMouseXRef.current = null;
-      mouseBoundaryStateRef.current = { left: false, right: false, bottom: false, top: false };
-    }
-
     // Process each cursor coordinate
-    cursorCoords.forEach(async (coord) => {
+    cursorCoords.forEach((coord) => {
       const functionId = coord.functionId;
       const x = parseFloat(coord.x);
       const y = parseFloat(coord.y);
-      const mouseY = coord.mouseY ? parseFloat(coord.mouseY) : null;
+      const mouseY = coord.mouseY === null || coord.mouseY === undefined ? null : parseFloat(coord.mouseY);
       const pan = calculatePan(x);
 
       // Handle tick sound with panning - only when Shift is pressed, regardless of exploration mode
-      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isAudioEnabled && isShiftPressed &&
+      if (stepSize && stepSize > 0 && typeof x === 'number' && !isNaN(x) && isShiftPressed &&
           (explorationMode === "keyboard_smooth" || explorationMode === "mouse" || explorationMode === "batch")) {
         let n = Math.floor(x / stepSize);
         if (n !== lastTickIndexRef.current) {
@@ -816,32 +748,15 @@ const GraphSonification = () => {
           }
           tickSynthRef.current?.triggerAttackRelease("C6", "16n");
           lastTickIndexRef.current = n;
-
-          // Increment tick count for batch exploration
-          if (explorationMode === "batch") {
-            batchTickCountRef.current++;
-          }
         }
       }
 
-      // Check for special events first (this sets the boundary state)
-      // Skip chart boundary detection for the first 5 ticks of batch exploration
-      // but always allow y-axis intersection detection as it's important for navigation
-      const shouldSkipChartBoundaryDetection = explorationMode === "batch" && batchTickCountRef.current <= 5;
+      checkYAxisIntersectionEvents(functionId, coord);
+      checkDiscontinuityEvents(functionId, coord);
 
-      // Always check y-axis intersection events (important for navigation)
-      await checkYAxisIntersectionEvents(functionId, coord);
-
-      if (!shouldSkipChartBoundaryDetection) {
-        await checkChartBoundaryEvents(functionId, coord);
-        await checkDiscontinuityEvents(functionId, coord);
-      } else {
-        // Reset boundary state during skipped detection to prevent false positives
-        isAtBoundaryRef.current = false;
-      }
-
-      // If at boundary, stop sonification and return
-      if (isAtBoundaryRef.current) {
+      // The cursor cannot advance past a horizontal border, so hold the tone silent
+      // there rather than sustaining a pitch the user can no longer change
+      if (isAtBorder) {
         stopTone(functionId);
         return;
       }
@@ -874,97 +789,63 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, isAudioEnabled, isEditFunctionDialogOpen, isEditLandmarkDialogOpen, functionDefinitions, graphBounds, stepSize, explorationMode]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isAudioEnabled]);
 
-  // Event detection functions
-  const checkChartBoundaryEvents = async (functionId, coords) => {
-    const x = parseFloat(coords.x);
-    const y = parseFloat(coords.y);
+  /**
+   * Resolve the left/right chart border once per frame and sound the earcon when it
+   * is reached, or repeatedly while the user keeps trying to move past it. All
+   * cursors share the same x, so a single shared state is enough.
+   *
+   * Vertical exits are not treated as borders: a function value leaving the view is
+   * reported by the no_y earcon instead.
+   *
+   * During batch playback, suppressEarcon skips chart_border only while the cursor
+   * is still on the parked start edge. After chart_border_start has played (cursor
+   * left that edge), chart_border is allowed again — including at the opposite end.
+   *
+   * Returns the border currently occupied, or null.
+   */
+  const processHorizontalBorder = (coords, { suppressEarcon = false } = {}) => {
+    const sample = coords.find(coord => Number.isFinite(parseFloat(coord.x)));
+
+    if (!sample) {
+      borderEdgeRef.current = null;
+      return null;
+    }
+
+    const x = parseFloat(sample.x);
+    // Whether the navigation actually tried to leave the chart. This is reported by
+    // the clamp, so it needs no tolerance and holds at every zoom level. A clamped
+    // cursor always lands inside the enter window, so a blocked attempt that does not
+    // agree with the position below is stale (the view moved, not the cursor) and is
+    // ignored by resolveBorderEvent.
+    const blocked = sample.blockedEdge ?? null;
+    const previousEdge = borderEdgeRef.current;
+    const edge = horizontalEdge(x, graphBounds, previousEdge);
     const now = Date.now();
-    const globalLastPlayed = chartBorderLastPlayedRef.current;
-    const globalCooldownActive = globalLastPlayed && (now - globalLastPlayed) <= 200; // small global cooldown
 
-    // Calculate base tolerance based on current graph bounds to be more robust with zoom
-    const xRange = graphBounds.xMax - graphBounds.xMin;
-    const yRange = graphBounds.yMax - graphBounds.yMin;
-    const baseTolerance = Math.max(0.02, Math.min(xRange, yRange) * 0.001); // Adaptive tolerance
-
-    let isAtLeftBoundary = false;
-    let isAtRightBoundary = false;
-    let isAtBottomBoundary = false;
-    let isAtTopBoundary = false;
-
-    if (explorationMode === "mouse") {
-      // For mouse navigation, use a wider 1% threshold of the visible range
-      const xWindow = xRange * 0.01;
-      const yWindow = yRange * 0.01;
-
-      isAtLeftBoundary = x <= graphBounds.xMin + xWindow;
-      isAtRightBoundary = x >= graphBounds.xMax - xWindow;
-      isAtBottomBoundary = y <= graphBounds.yMin + yWindow;
-      isAtTopBoundary = y >= graphBounds.yMax - yWindow;
-    } else {
-      // For keyboard / batch navigation keep the previous, tighter behaviour
-      isAtLeftBoundary = Math.abs(x - (graphBounds.xMin + baseTolerance)) < baseTolerance * 0.1;
-      isAtRightBoundary = Math.abs(x - (graphBounds.xMax - baseTolerance)) < baseTolerance * 0.1;
-      isAtBottomBoundary = Math.abs(y - (graphBounds.yMin + baseTolerance)) < baseTolerance * 0.1;
-      isAtTopBoundary = Math.abs(y - (graphBounds.yMax - baseTolerance)) < baseTolerance * 0.1;
-    }
-
-    // Get previous boundary state for this function
-    const prevState = prevBoundaryStateRef.current.get(functionId) || {
-      left: false, right: false, bottom: false, top: false
-    };
-
-    // Create a boundary key for this specific boundary and detect new entry
-    let boundaryKey = null;
-    let justEnteredBoundary = false;
-    if (isAtLeftBoundary) {
-      boundaryKey = `${functionId}_left`;
-      justEnteredBoundary = !prevState.left;
-    } else if (isAtRightBoundary) {
-      boundaryKey = `${functionId}_right`;
-      justEnteredBoundary = !prevState.right;
-    } else if (isAtBottomBoundary) {
-      boundaryKey = `${functionId}_bottom`;
-      justEnteredBoundary = !prevState.bottom;
-    } else if (isAtTopBoundary) {
-      boundaryKey = `${functionId}_top`;
-      justEnteredBoundary = !prevState.top;
-    }
-
-    // console.log(`Boundary check for function ${functionId}: boundaryKey=${boundaryKey}, x=${x}, y=${y}, graphBounds=${JSON.stringify(graphBounds)}`);
-
-    if (boundaryKey) {
-      // Set boundary state to true when at boundary
-      isAtBoundaryRef.current = true;
-
-      if (explorationMode !== "mouse") {
-        // Keyboard / batch: keep cooldown-based behaviour
-        const lastTriggered = boundaryTriggeredRef.current.get(boundaryKey);
-
-        if ((!lastTriggered || (now - lastTriggered) > 200) && !globalCooldownActive) { // 200ms cooldown + global cooldown
-          await playAudioSample("chart_border", { volume: -20 });
-          boundaryTriggeredRef.current.set(boundaryKey, now);
-          chartBorderLastPlayedRef.current = now;
-          // console.log(`Chart boundary event triggered for function ${functionId} at boundary: ${boundaryKey}`);
-        }
-      }
-    } else {
-      // Clear boundary state when not at boundary
-      isAtBoundaryRef.current = false;
-    }
-
-    // Update the previous boundary state
-    prevBoundaryStateRef.current.set(functionId, {
-      left: isAtLeftBoundary,
-      right: isAtRightBoundary,
-      bottom: isAtBottomBoundary,
-      top: isAtTopBoundary
+    const { play } = resolveBorderEvent({
+      previousEdge,
+      edge,
+      blocked,
+      now,
+      lastPlayedAt: chartBorderLastPlayedRef.current
     });
+
+    borderEdgeRef.current = edge;
+
+    if (play && !suppressEarcon) {
+      playAudioSample("chart_border", { volume: -20, pan: calculatePan(x) });
+      chartBorderLastPlayedRef.current = now;
+    } else if (play && suppressEarcon) {
+      // Still advance the cooldown clock so a later non-batch border does not burst
+      chartBorderLastPlayedRef.current = now;
+    }
+
+    return edge;
   };
 
-  const checkYAxisIntersectionEvents = async (functionId, coords) => {
+  const checkYAxisIntersectionEvents = (functionId, coords) => {
     const x = parseFloat(coords.x);
     const prevXSign = prevXSignRef.current.get(functionId);
     const currentXSign = Math.sign(x);
@@ -991,7 +872,7 @@ const GraphSonification = () => {
       const now = Date.now();
 
       if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown
-        await playAudioSample("y_axis_intersection", { volume: -12 });
+        playAudioSample("y_axis_intersection", { volume: -12, pan: calculatePan(x) });
         yAxisTriggeredRef.current.set(functionId, now);
         // console.log(`Y-axis intersection event triggered for function ${functionId} at x=${x} (batch mode: ${explorationMode === "batch"})`);
       }
@@ -1001,7 +882,7 @@ const GraphSonification = () => {
     prevXSignRef.current.set(functionId, currentXSign);
   };
 
-  const checkDiscontinuityEvents = async (functionId, coords) => {
+  const checkDiscontinuityEvents = (functionId, coords) => {
     // Handle both numeric and string representations of y
     let y;
     if (typeof coords.y === 'string') {
@@ -1020,19 +901,9 @@ const GraphSonification = () => {
     const isOutsideBounds = typeof y === 'number' && (y < graphBounds.yMin || y > graphBounds.yMax);
 
     if (isInvalid || isOutsideBounds) {
-      // Check if we haven't recently triggered this event to avoid spam
-      const lastTriggered = boundaryTriggeredRef.current.get(`${functionId}_discontinuity`);
-      const now = Date.now();
-
-      if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown for discontinuities
-        // Stop the tone for this function before playing the earcon
-        stopTone(functionId);
-        // console.log(`Stopping tone for function ${functionId} due to ${isInvalid ? 'discontinuity' : 'out of bounds'} at x=${coords.x}, y=${coords.y}`);
-
-        await playAudioSample("no_y", { volume: -35 });
-        boundaryTriggeredRef.current.set(`${functionId}_discontinuity`, now);
-        // console.log(`${isInvalid ? 'Discontinuity' : 'Out of bounds'} event triggered for function ${functionId} at x=${coords.x}, y=${coords.y}`);
-      }
+      // Stop the tone; the shared no_y earcon is played once by the aggregate
+      // visible/out-of-bounds handlers above (same volume every time).
+      stopTone(functionId);
     } else {
       // Clear the discontinuity trigger when function becomes valid again
       boundaryTriggeredRef.current.delete(`${functionId}_discontinuity`);
@@ -1041,14 +912,11 @@ const GraphSonification = () => {
 
   // Check for landmark intersections and play appropriate earcons
   const checkLandmarkIntersections = (cursorCoords) => {
-    // Don't check for landmark intersections if edit-landmark dialog is open
-    if (isEditLandmarkDialogOpen) {
-      return;
-    }
-
     if (!cursorCoords || cursorCoords.length === 0) return;
 
-    // Get active functions
+    // X-crossing is zoom-proof; the match window is only used on the first
+    // observation of a function (no previous x yet).
+    const { matchX } = landmarkWindows(graphBounds, stepSize);
     const activeFunctions = getActiveFunctions(functionDefinitions);
 
     activeFunctions.forEach(func => {
@@ -1057,96 +925,43 @@ const GraphSonification = () => {
 
       if (functionIndex === -1) return;
 
-      // Get landmarks for this function
       const landmarks = getLandmarksN(functionDefinitions, functionIndex);
       if (!landmarks || landmarks.length === 0) return;
 
-      // Find cursor position for this function
       const cursorCoord = cursorCoords.find(coord => coord.functionId === functionId);
       if (!cursorCoord) return;
 
       const cursorX = parseFloat(cursorCoord.x);
       const cursorY = parseFloat(cursorCoord.y);
+      if (!Number.isFinite(cursorX)) return;
 
-      // Get previous cursor position for this function
       const prevPosition = prevLandmarkPositionsRef.current.get(functionId);
+      const prevX = prevPosition ? prevPosition.x : null;
 
-      // Check each landmark for crossing detection
       landmarks.forEach((landmark, landmarkIndex) => {
         const landmarkX = parseFloat(landmark.x);
-        const landmarkY = parseFloat(landmark.y);
-
-        // Create landmark key for tracking
         const landmarkKey = `${functionId}_landmark_${landmarkIndex}`;
+        const { hit } = resolveLandmarkHit({ prevX, cursorX, landmarkX, matchX });
 
-        let shouldTriggerEarcon = false;
+        if (!hit) return;
 
-        if (prevPosition) {
-          const prevX = prevPosition.x;
-          const prevY = prevPosition.y;
+        const lastTriggered = boundaryTriggeredRef.current.get(landmarkKey);
+        const now = Date.now();
 
-          // Check if cursor crossed the landmark position
-          // We consider it crossed if the cursor moved from one side of the landmark to the other
-          const prevDistance = Math.sqrt(
-            Math.pow(prevX - landmarkX, 2) + Math.pow(prevY - landmarkY, 2)
-          );
-          const currentDistance = Math.sqrt(
-            Math.pow(cursorX - landmarkX, 2) + Math.pow(cursorY - landmarkY, 2)
-          );
-
-          // Define a small threshold for "reaching" the landmark (much smaller than before)
-          const reachThreshold = 0.05; // Very small threshold
-
-          // Trigger if we're very close to the landmark and weren't close before
-          if (currentDistance <= reachThreshold && prevDistance > reachThreshold) {
-            shouldTriggerEarcon = true;
-          }
-        } else {
-          // First time tracking this function - check if we're already at a landmark
-          const distance = Math.sqrt(
-            Math.pow(cursorX - landmarkX, 2) + Math.pow(cursorY - landmarkY, 2)
-          );
-
-          if (distance <= 0.05) { // Very small threshold for initial detection
-            shouldTriggerEarcon = true;
-          }
-        }
-
-        if (shouldTriggerEarcon) {
-          // Don't play earcon if edit-landmark dialog is open
-          if (isEditLandmarkDialogOpen) {
-            return;
-          }
-
-          // Check if we haven't recently triggered this landmark to avoid spam
-          const lastTriggered = boundaryTriggeredRef.current.get(landmarkKey);
-          const now = Date.now();
-
-          if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown for landmarks
-            // Play landmark earcon
-            const shape = landmark.shape || landmark.appearance || "triangle";
-            landmarkEarconManager.playLandmarkEarcon(landmark, {
-              pan: (cursorX - graphBounds.xMin) / (graphBounds.xMax - graphBounds.xMin) * 2 - 1 // -1 to 1
-            });
-
-            boundaryTriggeredRef.current.set(landmarkKey, now);
-            // console.log(`Landmark intersection: ${landmark.label || `Landmark ${landmarkIndex + 1}`} (${shape}) at x=${cursorX.toFixed(2)}, y=${cursorY.toFixed(2)}`);
-          }
+        if (!lastTriggered || (now - lastTriggered) > LANDMARK_COOLDOWN_MS) {
+          landmarkEarconManager.playLandmarkEarcon(landmark, {
+            pan: calculatePan(cursorX)
+          });
+          boundaryTriggeredRef.current.set(landmarkKey, now);
         }
       });
 
-      // Update previous position for this function
       prevLandmarkPositionsRef.current.set(functionId, { x: cursorX, y: cursorY });
     });
   };
 
   // Helper function to play audio samples
   const playAudioSample = async (sampleName, options = {}) => {
-    // Don't play samples if audio is not enabled
-    if (!isAudioEnabled) {
-      return;
-    }
-
     try {
       await audioSampleManager.playSample(sampleName, options);
     } catch (error) {
@@ -1157,18 +972,13 @@ const GraphSonification = () => {
   // Example function to demonstrate how to play samples during sonification
   // You can call this function when specific events occur
   const triggerSampleEvent = async (eventType) => {
-    // Don't trigger samples if audio is not enabled
-    if (!isAudioEnabled) {
-      return;
-    }
-
     try {
       switch (eventType) {
         case 'chart_border':
           await playAudioSample('chart_border', { volume: -20 });
           break;
         case 'no_y':
-          await playAudioSample('no_y', { volume: -10 });
+          await playAudioSample('no_y', { volume: -25 });
           break;
         case 'y_axis_intersection':
           await playAudioSample('y_axis_intersection', { volume: -12 });
