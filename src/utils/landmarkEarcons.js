@@ -1,4 +1,3 @@
-import * as Tone from "tone";
 import audioSampleManager from "./audioSamples";
 
 /**
@@ -18,14 +17,7 @@ class LandmarkEarconManager {
    */
   async initialize() {
     if (this.isInitialized) return;
-
-    try {
-      await Tone.start();
-      this.isInitialized = true;
-      // console.log("LandmarkEarconManager initialized");
-    } catch (error) {
-      console.error("Failed to initialize LandmarkEarconManager:", error);
-    }
+    this.isInitialized = true;
   }
 
   // No synth creation needed when using samples

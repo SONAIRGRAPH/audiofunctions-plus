@@ -14,6 +14,7 @@ import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { PaletteActions } from './components/ui/PaletteActions_dyn';
 import { AnnouncementProvider } from './context/AnnouncementContext';
 import { InfoToastProvider } from './context/InfoToastContext';
+import { ensureToneStarted } from './utils/toneAudio';
 
 function App() {
   return (
@@ -67,9 +68,10 @@ const KBarWrapper = () => {
   // needed to wrap actions into GraphContextProvider
   const { setIsAudioEnabled, focusChart } = useGraphContext();
 
-  const handleSkipActivate = (e) => {
+  const handleSkipActivate = async (e) => {
     // Enable audio and focus the chart just like pressing "P"
     if (e) e.preventDefault();
+    await ensureToneStarted();
     setIsAudioEnabled((prev) => (prev ? prev : true));
     // Ensure focus after enabling audio
     setTimeout(() => {

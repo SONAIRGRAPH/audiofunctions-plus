@@ -8,17 +8,11 @@ class AudioSampleManager {
     this.isInitialized = false;
   }
 
-  // Initialize the audio context
+  // Prepare the sample manager. Do not call Tone.start() here: that must happen
+  // from a user gesture (see ensureToneStarted).
   async initialize() {
     if (this.isInitialized) return;
-
-    try {
-      await Tone.start();
-      this.isInitialized = true;
-      // console.log("AudioSampleManager initialized");
-    } catch (error) {
-      console.error("Failed to initialize AudioSampleManager:", error);
-    }
+    this.isInitialized = true;
   }
 
   _connectPlayerToMixer(sampleName, player, panner) {

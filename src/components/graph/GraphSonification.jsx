@@ -60,6 +60,7 @@ const GraphSonification = () => {
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
   const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
+  const prevAudioEnabledRef = useRef(isAudioEnabled);
   const NO_Y_VOLUME_DB = -25;
 
   // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
@@ -165,16 +166,13 @@ const GraphSonification = () => {
     };
   }, []);
 
-  // Initialize audio sample manager and landmark earcons
+  // Prepare sample and landmark playback. The Web Audio context is started later
+  // from a user gesture (ensureToneStarted), not on mount.
   useEffect(() => {
     const initializeAudioSystems = async () => {
       try {
-        // Wait for Tone.js to be fully initialized
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         await audioSampleManager.initialize();
         await landmarkEarconManager.initialize();
-        // console.log("Audio systems initialized (samples and landmark earcons)");
       } catch (error) {
         console.error("Failed to initialize audio systems:", error);
       }
@@ -309,8 +307,6 @@ const GraphSonification = () => {
         }
       }
     });
-
-    Tone.start();
 
     return () => {
       instrumentsRef.current.forEach(instrument => {
@@ -571,6 +567,13 @@ const GraphSonification = () => {
       return;
     }
 
+    // Unmute (P) should replay the current pitch; discrete mode otherwise skips
+    // an unchanged pitch class and would stay silent after a suspended-context start.
+    if (isAudioEnabled && !prevAudioEnabledRef.current) {
+      lastPitchClassesRef.current.clear();
+    }
+    prevAudioEnabledRef.current = isAudioEnabled;
+
     const isBatchPlayback =
       PlayFunction.active && PlayFunction.source === "play";
 
@@ -786,7 +789,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isAudioEnabled]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it

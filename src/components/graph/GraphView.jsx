@@ -5,7 +5,7 @@ import { create, all, forEach } from 'mathjs'
 import { checkMathSpell, transformAssingnments, transformMathConstants, functionDefPiecewiseToString } from "../../utils/parse";
 import { getActiveFunctions, getLandmarksN, getFunctionInstrumentN } from "../../utils/graphObjectOperations";
 import { clampX, boundaryWindows } from "../../utils/boundaryGeometry";
-import * as Tone from "tone";
+import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInstruments } from "../../context/InstrumentsContext";
 import { InstrumentFrequencyType } from "../../config/instruments";
@@ -1076,6 +1076,9 @@ const GraphView = () => {
       onFocus={(e) => {
         e.target.style.borderColor = 'var(--color-primary)';
         e.target.style.boxShadow = '0 0 0 2px var(--color-primary)';
+      }}
+      onPointerDown={() => {
+        ensureToneStarted();
       }}
       onBlur={(e) => {
         e.target.style.borderColor = 'transparent';

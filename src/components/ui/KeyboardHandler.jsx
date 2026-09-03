@@ -3,6 +3,7 @@ import { useGraphContext } from "../../context/GraphContext";
 import { getActiveFunctions, getFunctionNameN, findLandmarkByShortcut, getLandmarksN } from "../../utils/graphObjectOperations";
 import { addLandmarkAtCursorPosition, jumpToLandmarkWithToast, getScreenPosition } from "../../utils/landmarkUtils";
 import audioSampleManager from "../../utils/audioSamples";
+import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
 import { useDialog } from "../../context/DialogContext";
@@ -286,6 +287,8 @@ export default function KeyboardHandler() {
             if (!active || active.getAttribute('role') !== 'application') {
                 return;
             }
+
+            await ensureToneStarted();
 
             pressedKeys.current.add(event.key.toLowerCase());
 

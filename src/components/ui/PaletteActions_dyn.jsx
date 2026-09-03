@@ -11,6 +11,7 @@ import { setTheme } from "../../utils/theme";
 import { useZoomBoard, useCenterAtCursor } from "./KeyboardHandler";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
+import { ensureToneStarted } from "../../utils/toneAudio";
 
 export const useDynamicKBarActions = () => {
   const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart, stepSize } = useGraphContext();
@@ -218,7 +219,11 @@ export const useDynamicKBarActions = () => {
       shortcut: ["p"],
       keywords: "audio, sound, enable, disable, start, stop, toggle, sonify, sonification, music, tone, mute, unmute, volume, hearing",
       parent: "quick-options",
-      perform: () => {setIsAudioEnabled(prev => !prev); setTimeout(() => focusChart(), 100);},
+      perform: async () => {
+        await ensureToneStarted();
+        setIsAudioEnabled(prev => !prev);
+        setTimeout(() => focusChart(), 100);
+      },
       icon: isAudioEnabled
         ? <VolumeX className="size-5 shrink-0 opacity-70" />
         : <Volume2 className="size-5 shrink-0 opacity-70" />,
