@@ -72,6 +72,9 @@ Groups always exist from app start. Build three group faders first; add a channe
 - `sample:y_axis_intersection` — crossing x = 0
 - `sample:notification` — point of interest while stepping
 - `sample:deny` — invalid zoom/bounds
+- `sample:wasd_keypress` — W/A/S/D pan of the visible chart
+- `sample:zoomin` — zoom in (Z)
+- `sample:zoomout` — zoom out (Shift+Z)
 - `sample:landmark_triangle` / `landmark_square` / `landmark_diamond`
 
 **Under Noise**
@@ -345,6 +348,9 @@ const SAMPLE_LABELS = {
   y_axis_intersection: "Y-axis intersection",
   notification: "Notification",
   deny: "Denied",
+  wasd_keypress: "WASD pan",
+  zoomin: "Zoom in",
+  zoomout: "Zoom out",
   landmark_triangle: "Landmark (triangle)",
   landmark_square: "Landmark (square)",
   landmark_diamond: "Landmark (diamond)",

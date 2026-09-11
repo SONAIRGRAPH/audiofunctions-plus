@@ -189,6 +189,9 @@ class AudioSampleManager {
       'y_axis_intersection': 'y-axis-intersection.wav',
       'deny': 'deny.wav',
       'notification': 'notification.mp3',
+      'wasd_keypress': 'wasd_keypress.mp3',
+      'zoomin': 'zoomin.mp3',
+      'zoomout': 'zoomout.mp3',
       // Landmark earcons
       'landmark_square': 'landmark_square.mp3',
       'landmark_triangle': 'landmark_triangle.mp3',

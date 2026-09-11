@@ -8,6 +8,14 @@ import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
 import { useDialog } from "../../context/DialogContext";
 
+const playNavigationEarcon = (sampleName) => {
+  try {
+    audioSampleManager.playSample(sampleName, { volume: -15 });
+  } catch (error) {
+    console.warn(`Failed to play ${sampleName} earcon:`, error);
+  }
+};
+
 // Export the ZoomBoard function so it can be used in other components
 export const useZoomBoard = () => {
   const { setGraphBounds } = useGraphContext();
@@ -17,6 +25,8 @@ export const useZoomBoard = () => {
     if (out) { scaleFactor.x = 1.1; scaleFactor.y = 1.1; }
     if (xOnly) scaleFactor.y = 1; //only x axis zoom
     if (yOnly) scaleFactor.x = 1; //only y axis zoom
+
+    playNavigationEarcon(out ? "zoomout" : "zoomin");
 
     setGraphBounds(prevBounds => {
       const centerX = (prevBounds.xMin + prevBounds.xMax) / 2;
@@ -406,15 +416,19 @@ export default function KeyboardHandler() {
             switch (event.key) {
                 case "a": case "A":
                     setGraphBounds(prev => ({ ...prev, xMin: prev.xMin - step, xMax: prev.xMax - step }));
+                    playNavigationEarcon("wasd_keypress");
                     break;
                 case "d": case "D":
                     setGraphBounds(prev => ({ ...prev, xMin: prev.xMin + step, xMax: prev.xMax + step }));
+                    playNavigationEarcon("wasd_keypress");
                     break;
                 case "w": case "W":
                     setGraphBounds(prev => ({ ...prev, yMin: prev.yMin + step, yMax: prev.yMax + step }));
+                    playNavigationEarcon("wasd_keypress");
                     break;
                 case "s": case "S":
                     setGraphBounds(prev => ({ ...prev, yMin: prev.yMin - step, yMax: prev.yMax - step }));
+                    playNavigationEarcon("wasd_keypress");
                     break;
 
                 case "z": case "Z":
