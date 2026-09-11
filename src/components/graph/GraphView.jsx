@@ -9,6 +9,7 @@ import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInstruments } from "../../context/InstrumentsContext";
 import { InstrumentFrequencyType } from "../../config/instruments";
+import { cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
 
 const config = { }
 const math = create(all, config)
@@ -900,6 +901,7 @@ const GraphView = () => {
       if (board && board.jc) {
         // Only handle mouse movement if not in keyboard exploration mode
         if (!playActiveRef.current) {
+          cancelBoundsAnnouncement();
           setExplorationMode("mouse");
           const coords = board.getUsrCoordsOfMouse(event);
           const x = coords[0];

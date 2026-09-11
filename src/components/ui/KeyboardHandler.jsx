@@ -7,6 +7,7 @@ import { ensureToneStarted } from "../../utils/toneAudio";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
 import { useDialog } from "../../context/DialogContext";
+import { scheduleBoundsAnnouncement, cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
 
 const playNavigationEarcon = (sampleName) => {
   try {
@@ -18,7 +19,10 @@ const playNavigationEarcon = (sampleName) => {
 
 // Export the ZoomBoard function so it can be used in other components
 export const useZoomBoard = () => {
-  const { setGraphBounds } = useGraphContext();
+  const { setGraphBounds, graphBounds } = useGraphContext();
+  const { announce } = useAnnouncement();
+  const graphBoundsRef = useRef(graphBounds);
+  graphBoundsRef.current = graphBounds;
 
   return (out, xOnly = false, yOnly = false) => {
     const scaleFactor = {x: 0.9, y: 0.9};
@@ -41,6 +45,8 @@ export const useZoomBoard = () => {
         yMax: centerY + halfWidthY,
       };
     });
+
+    scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
   };
 };
 
@@ -121,6 +127,8 @@ export default function KeyboardHandler() {
 
     const pressedKeys = useRef(new Set());
     const lastKeyDownTime = useRef(null);
+    const graphBoundsRef = useRef(graphBounds);
+    graphBoundsRef.current = graphBounds;
     const HOLD_THRESHOLD = 1000;
     const KEYPRESS_THRESHOLD = 15;
 
@@ -291,6 +299,10 @@ export default function KeyboardHandler() {
     useEffect(() => {
         // Function to handle key down events
         const handleKeyDown = async (event) => {
+            // Any key is activity: drop a pending bounds announcement unless
+            // this event is itself a pan/zoom that reschedules it below.
+            cancelBoundsAnnouncement();
+
             const active = document.activeElement;
 
             // Only handle events when the chart (role="application") is focused
@@ -413,22 +425,24 @@ export default function KeyboardHandler() {
                 return;
             }
 
+            const panView = (updater) => {
+                setGraphBounds(updater);
+                playNavigationEarcon("wasd_keypress");
+                scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
+            };
+
             switch (event.key) {
                 case "a": case "A":
-                    setGraphBounds(prev => ({ ...prev, xMin: prev.xMin - step, xMax: prev.xMax - step }));
-                    playNavigationEarcon("wasd_keypress");
+                    panView(prev => ({ ...prev, xMin: prev.xMin - step, xMax: prev.xMax - step }));
                     break;
                 case "d": case "D":
-                    setGraphBounds(prev => ({ ...prev, xMin: prev.xMin + step, xMax: prev.xMax + step }));
-                    playNavigationEarcon("wasd_keypress");
+                    panView(prev => ({ ...prev, xMin: prev.xMin + step, xMax: prev.xMax + step }));
                     break;
                 case "w": case "W":
-                    setGraphBounds(prev => ({ ...prev, yMin: prev.yMin + step, yMax: prev.yMax + step }));
-                    playNavigationEarcon("wasd_keypress");
+                    panView(prev => ({ ...prev, yMin: prev.yMin + step, yMax: prev.yMax + step }));
                     break;
                 case "s": case "S":
-                    setGraphBounds(prev => ({ ...prev, yMin: prev.yMin - step, yMax: prev.yMax - step }));
-                    playNavigationEarcon("wasd_keypress");
+                    panView(prev => ({ ...prev, yMin: prev.yMin - step, yMax: prev.yMax - step }));
                     break;
 
                 case "z": case "Z":
@@ -594,7 +608,7 @@ export default function KeyboardHandler() {
         document.removeEventListener("keydown", handleKeyDown);
         document.removeEventListener("keyup", handleKeyUp);
       };
-    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings]);
+    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings, announce]);
 
     return null;
 }
