@@ -46,7 +46,7 @@ const GraphSonification = () => {
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
   const { getInstrumentByName } = useInstruments();
-  const { isDialogOpen, isEditFunctionDialogOpen, isEditLandmarkDialogOpen } = useDialog();
+  const { isDialogOpen, isEditFunctionDialogOpen } = useDialog();
   const { visualState } = useKBar((state) => ({ visualState: state.visualState }));
   const isCommandPaletteOpen = visualState !== VisualState.hidden;
   const isSonificationPaused = isCommandPaletteOpen || isDialogOpen;
@@ -55,12 +55,12 @@ const GraphSonification = () => {
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
   const [forceRecreate, setForceRecreate] = useState(false); // State to force recreation of sonification pipeline
-  const wasEditDialogOpenRef = useRef(false); // Detect edit-dialog close (not initial mount)
   const batchResetDoneRef = useRef(false); // Track if batch reset has been done
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
   const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
   const prevAudioEnabledRef = useRef(isAudioEnabled);
+  const prevSonificationPausedRef = useRef(isSonificationPaused);
   const NO_Y_VOLUME_DB = -25;
 
   // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
@@ -318,29 +318,6 @@ const GraphSonification = () => {
     };
   }, [functionDefinitions, getInstrumentByName, forceRecreate]);
 
-  // Recreate the pipeline when an edit dialog closes (not on mount, P toggle, or palette)
-  useEffect(() => {
-    let timeoutId = null;
-    const isEditDialogOpen = isEditFunctionDialogOpen || isEditLandmarkDialogOpen;
-
-    if (wasEditDialogOpenRef.current && !isEditDialogOpen) {
-      stopAllTones();
-      stopPinkNoise();
-
-      timeoutId = setTimeout(() => {
-        setForceRecreate(true);
-      }, 50);
-    }
-
-    wasEditDialogOpenRef.current = isEditDialogOpen;
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [isEditFunctionDialogOpen, isEditLandmarkDialogOpen]);
-
   // Reset lastPitchClass for functions that just became active (for discrete sonification)
   useEffect(() => {
     if (isEditFunctionDialogOpen) return;
@@ -567,12 +544,14 @@ const GraphSonification = () => {
       return;
     }
 
-    // Unmute (P) should replay the current pitch; discrete mode otherwise skips
-    // an unchanged pitch class and would stay silent after a suspended-context start.
-    if (isAudioEnabled && !prevAudioEnabledRef.current) {
+    // Unmute (P or overlay close) should replay the current pitch; discrete mode
+    // otherwise skips an unchanged pitch class and would stay silent.
+    const overlayJustClosed = prevSonificationPausedRef.current && !isSonificationPaused;
+    if (isAudioEnabled && (!prevAudioEnabledRef.current || overlayJustClosed)) {
       lastPitchClassesRef.current.clear();
     }
     prevAudioEnabledRef.current = isAudioEnabled;
+    prevSonificationPausedRef.current = isSonificationPaused;
 
     const isBatchPlayback =
       PlayFunction.active && PlayFunction.source === "play";
@@ -789,7 +768,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isAudioEnabled]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isAudioEnabled, isSonificationPaused]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it
