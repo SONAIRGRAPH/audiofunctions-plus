@@ -684,7 +684,7 @@ const GraphView = () => {
       let startX;
       if (PlayFunction.source === "play") {
         startX = PlayFunction.speed > 0 ? graphBounds.xMin : graphBounds.xMax;
-      } else if (PlayFunction.source === "keyboard") {
+      } else if (PlayFunction.source === "keyboard" || PlayFunction.source === "play_space") {
         // Use the current cursor position if available, otherwise use last known position
         if (cursorCoords && cursorCoords.length > 0 && cursorCoords[0].x !== undefined) {
           startX = parseFloat(cursorCoords[0].x);
@@ -707,7 +707,7 @@ const GraphView = () => {
       // exception: if all active functions stay within a single pitch class over the view,
       // only apply the first x-axis step without requiring a pitch-class crossing.
       // This valid start position is stored in context and used to control audio gain.
-      if (PlayFunction.source === "play" && stepSize && stepSize > 0) {
+      if ((PlayFunction.source === "play" || PlayFunction.source === "play_space") && stepSize && stepSize > 0) {
         const activeFunctionsForBatch = getActiveFunctions(functionDefinitions);
 
         if (activeFunctionsForBatch.length > 0) {

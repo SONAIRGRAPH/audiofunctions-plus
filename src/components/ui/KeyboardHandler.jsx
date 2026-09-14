@@ -523,7 +523,7 @@ export default function KeyboardHandler() {
                     break;
 
                 case " ": // Spacebar plays batch sonification
-                    setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active }));
+                    setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active }));
                     event.preventDefault();
                     event.stopPropagation();
                     break;
