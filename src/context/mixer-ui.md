@@ -61,6 +61,30 @@ setAudioModality(AUDIO_MODALITIES.MANUAL);
 
 `isAudioEnabled` is the user’s mute/unmute choice — drive the speaker icon from this. AUTO idle mute is temporary and does not change `isAudioEnabled` or the icon; chart activity resumes sound. `isOutputOpen` is whether sound actually reaches the speakers.
 
+---
+
+## Clarinet octave (continuous sonification)
+
+The mixer also owns the **clarinet pitch range**. Default maps the visible y axis to 100–1000 Hz. Hearing-impaired users can drop the whole range by one or two octaves (each octave down **halves** every frequency). Guitar / discrete pitch classes are not affected.
+
+```js
+import { useMixer, CLARINET_OCTAVES } from "../context/MixerContext";
+
+const { clarinetOctave, setClarinetOctave, CLARINET_OCTAVES, CLARINET_OCTAVE_LABELS } = useMixer();
+
+setClarinetOctave(CLARINET_OCTAVES.DEFAULT); // 100–1000 Hz
+setClarinetOctave(CLARINET_OCTAVES.DOWN_1);  // 50–500 Hz
+setClarinetOctave(CLARINET_OCTAVES.DOWN_2);  // 25–250 Hz
+```
+
+| Value | Shift | Frequency range |
+|---|---|---|
+| `default` | 0 | 100–1000 Hz (current) |
+| `down1` | −1 octave | 50–500 Hz |
+| `down2` | −2 octaves | 25–250 Hz |
+
+The three values are mutually exclusive. Default is **DEFAULT**.
+
 Related files:
 
 - Mute policy: [`SonificationMuteController.jsx`](./SonificationMuteController.jsx)
@@ -183,6 +207,10 @@ const {
   AUDIO_MODALITIES,    // { AUTO: "auto", MANUAL: "manual" }
   audioModality,       // "auto" | "manual"
   setAudioModality,    // (modality) => void
+  CLARINET_OCTAVES,    // { DEFAULT: "default", DOWN_1: "down1", DOWN_2: "down2" }
+  CLARINET_OCTAVE_LABELS,
+  clarinetOctave,      // "default" | "down1" | "down2"
+  setClarinetOctave,   // (octave) => void
   isAudioEnabled,      // user's mute/unmute choice — drive the speaker icon from this
   setIsAudioEnabled,   // (bool | fn) => void
   toggleAudio,         // P / header: toggle isAudioEnabled
@@ -439,6 +467,38 @@ export function MixerModality() {
 }
 ```
 
+### 6. Clarinet octave (continuous range)
+
+```jsx
+import { useMixer } from "../context/MixerContext";
+
+export function MixerClarinetOctave() {
+  const {
+    clarinetOctave,
+    setClarinetOctave,
+    CLARINET_OCTAVES,
+    CLARINET_OCTAVE_LABELS,
+  } = useMixer();
+
+  return (
+    <fieldset>
+      <legend>Clarinet octave</legend>
+      {Object.values(CLARINET_OCTAVES).map((octave) => (
+        <label key={octave}>
+          <input
+            type="radio"
+            name="clarinet-octave"
+            checked={clarinetOctave === octave}
+            onChange={() => setClarinetOctave(octave)}
+          />
+          {CLARINET_OCTAVE_LABELS[octave]}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+```
+
 ---
 
 ## How to test without a finished panel
@@ -452,3 +512,4 @@ export function MixerModality() {
 4. Confirm **P** still mutes everything regardless of mixer faders.
 5. Confirm AUTO (default): leave the clarinet ringing, wait ~3.5s for a fade then mute at 4s; move again and it returns. First ←/→ or **B** after a reload should arm audio without **P**.
 6. Confirm MANUAL: `setAudioModality(AUDIO_MODALITIES.MANUAL)` — idle no longer ducks, and cursor keys do not auto-enable.
+7. Confirm clarinet octave: with continuous sonification, `setClarinetOctave(CLARINET_OCTAVES.DOWN_2)` drops the whole y-mapped range two octaves; guitar notes stay the same.

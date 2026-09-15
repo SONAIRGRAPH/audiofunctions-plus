@@ -3,7 +3,7 @@ import * as Tone from "tone";
 import { useGraphContext } from "../../context/GraphContext";
 import { useInstruments } from "../../context/InstrumentsContext";
 import { useDialog } from "../../context/DialogContext";
-import { useMixer } from "../../context/MixerContext";
+import { useMixer, CLARINET_OCTAVE_SHIFT } from "../../context/MixerContext";
 import { GLOBAL_FREQUENCY_RANGE, InstrumentFrequencyType } from "../../config/instruments";
 import {
   getActiveFunctions,
@@ -30,7 +30,7 @@ const GraphSonification = () => {
     isShiftPressed, // <-- get Shift key state
     discreteBatchValidStartX // <-- get valid start X position for discrete batch sonification
   } = useGraphContext();
-  const { isOutputOpen, isIdleFading, AUDIO_IDLE_FADE_DURATION_MS } = useMixer();
+  const { isOutputOpen, isIdleFading, AUDIO_IDLE_FADE_DURATION_MS, clarinetOctave } = useMixer();
 
   // Refs to track previous states for event detection
   const prevCursorCoordsRef = useRef(new Map()); // Track previous cursor positions
@@ -409,7 +409,12 @@ const GraphSonification = () => {
     if (y === null || y === undefined) return null;
 
     const normalizedY = (y - graphBounds.yMin)/(graphBounds.yMax-graphBounds.yMin);
-    return GLOBAL_FREQUENCY_RANGE.min + normalizedY * (GLOBAL_FREQUENCY_RANGE.max - GLOBAL_FREQUENCY_RANGE.min);
+    const baseHz =
+      GLOBAL_FREQUENCY_RANGE.min +
+      normalizedY * (GLOBAL_FREQUENCY_RANGE.max - GLOBAL_FREQUENCY_RANGE.min);
+    // Each octave down halves Hz (one up would double). Guitar pitch classes are unchanged.
+    const shift = CLARINET_OCTAVE_SHIFT[clarinetOctave] ?? 0;
+    return baseHz * 2 ** shift;
   };
 
   const calculatePan = (x) => {
@@ -785,7 +790,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isOutputOpen]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isOutputOpen, clarinetOctave]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it

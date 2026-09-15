@@ -35,12 +35,43 @@ export const AUDIO_MODALITIES = Object.freeze({
   MANUAL: "manual",
 });
 
+/** Continuous clarinet range: default, or 1–2 octaves down (each octave halves Hz). */
+export const CLARINET_OCTAVES = Object.freeze({
+  DEFAULT: "default",
+  DOWN_1: "down1",
+  DOWN_2: "down2",
+});
+
+export const CLARINET_OCTAVE_LABELS = Object.freeze({
+  [CLARINET_OCTAVES.DEFAULT]: "Default",
+  [CLARINET_OCTAVES.DOWN_1]: "−1 octave",
+  [CLARINET_OCTAVES.DOWN_2]: "−2 octaves",
+});
+
+/** Frequency multiplier: 2^shift. Octave down = ×0.5. */
+export const CLARINET_OCTAVE_SHIFT = Object.freeze({
+  [CLARINET_OCTAVES.DEFAULT]: 0,
+  [CLARINET_OCTAVES.DOWN_1]: -1,
+  [CLARINET_OCTAVES.DOWN_2]: -2,
+});
+
 const MixerContext = createContext(null);
 
 const normalizeAudioModality = (value) => {
   const next = String(value ?? "").toLowerCase();
   if (next === AUDIO_MODALITIES.AUTO) return AUDIO_MODALITIES.AUTO;
   if (next === AUDIO_MODALITIES.MANUAL) return AUDIO_MODALITIES.MANUAL;
+  return null;
+};
+
+const normalizeClarinetOctave = (value) => {
+  if (value === 0 || value === "0") return CLARINET_OCTAVES.DEFAULT;
+  if (value === -1 || value === "-1") return CLARINET_OCTAVES.DOWN_1;
+  if (value === -2 || value === "-2") return CLARINET_OCTAVES.DOWN_2;
+  const next = String(value ?? "").toLowerCase().replace(/[-_\s]/g, "");
+  if (next === CLARINET_OCTAVES.DEFAULT) return CLARINET_OCTAVES.DEFAULT;
+  if (next === CLARINET_OCTAVES.DOWN_1 || next === "minus1") return CLARINET_OCTAVES.DOWN_1;
+  if (next === CLARINET_OCTAVES.DOWN_2 || next === "minus2") return CLARINET_OCTAVES.DOWN_2;
   return null;
 };
 
@@ -63,6 +94,10 @@ const normalizeAudioModality = (value) => {
  *   AUDIO_MODALITIES  { AUTO: "auto", MANUAL: "manual" }
  *   audioModality     current modality ("auto" | "manual"); default AUTO
  *   setAudioModality  (modality) => void   mutually exclusive AUTO / MANUAL
+ *   CLARINET_OCTAVES  { DEFAULT, DOWN_1, DOWN_2 }
+ *   CLARINET_OCTAVE_LABELS  display names for those octaves
+ *   clarinetOctave    current clarinet range ("default" | "down1" | "down2")
+ *   setClarinetOctave (octave) => void
  *   isAudioEnabled    user-armed master (P / header); default false
  *   setIsAudioEnabled (bool | fn) => void
  *   toggleAudio       P / header: toggle the user's mute/unmute choice
@@ -93,6 +128,7 @@ export const MixerProvider = ({ children }) => {
   // (channels appear later, when sonification creates them).
   const [mixerState, setMixerState] = useState(() => mixerBus.getState());
   const [audioModality, setAudioModalityState] = useState(AUDIO_MODALITIES.AUTO);
+  const [clarinetOctave, setClarinetOctaveState] = useState(CLARINET_OCTAVES.DEFAULT);
   const [isAudioEnabled, setIsAudioEnabledState] = useState(false);
   const [isOverlayMuted, setIsOverlayMuted] = useState(false);
   const [isIdleMuted, setIsIdleMuted] = useState(false);
@@ -166,6 +202,15 @@ export const MixerProvider = ({ children }) => {
       return;
     }
     setAudioModalityState(next);
+  }, []);
+
+  const setClarinetOctave = useCallback((octave) => {
+    const next = normalizeClarinetOctave(octave);
+    if (!next) {
+      console.warn(`Unknown clarinet octave: ${octave}. Use CLARINET_OCTAVES.DEFAULT, DOWN_1, or DOWN_2.`);
+      return;
+    }
+    setClarinetOctaveState(next);
   }, []);
 
   // Linear volume 0..1 (clamped in the bus). Mute is independent of the stored volume.
@@ -255,11 +300,16 @@ export const MixerProvider = ({ children }) => {
       MIXER_GROUP_LABELS,
       MIXER_CHANNELS,
       AUDIO_MODALITIES,
+      CLARINET_OCTAVES,
+      CLARINET_OCTAVE_LABELS,
+      CLARINET_OCTAVE_SHIFT,
       AUDIO_IDLE_MUTE_MS,
       AUDIO_IDLE_FADE_START_MS,
       AUDIO_IDLE_FADE_DURATION_MS,
       audioModality,
       setAudioModality,
+      clarinetOctave,
+      setClarinetOctave,
       isAudioEnabled,
       setIsAudioEnabled,
       toggleAudio,
@@ -278,6 +328,8 @@ export const MixerProvider = ({ children }) => {
       setChannelMuted,
       audioModality,
       setAudioModality,
+      clarinetOctave,
+      setClarinetOctave,
       isAudioEnabled,
       setIsAudioEnabled,
       toggleAudio,
