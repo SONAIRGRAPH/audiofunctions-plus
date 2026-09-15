@@ -1,4 +1,8 @@
-const BOUNDS_ANNOUNCE_DELAY_MS = 700;
+// Bounds are announced after this many ms without user activity
+// (keydown, pan/zoom, chart pointer). Audio AUTO-idle mute uses a longer
+// window in MixerContext (AUDIO_IDLE_MUTE_MS).
+export const USER_IDLE_DELAY_MS = 700;
+const BOUNDS_ANNOUNCE_DELAY_MS = USER_IDLE_DELAY_MS;
 let boundsAnnounceTimeoutId = null;
 
 const formatBoundsAnnouncement = ({ xMin, xMax, yMin, yMax }) => {

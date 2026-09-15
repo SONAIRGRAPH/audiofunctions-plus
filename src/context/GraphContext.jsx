@@ -13,7 +13,6 @@ export const GraphContextProvider = ({ children }) => {
   const [functionInput, setFunctionInput] = useState("[[x+5,x < -4],[1/2*x^2,-4<=x < 1],[x-2,1<=x < 3],[5,x==3],[x-2,3 < x < 5],[3,5<= x]]"); // TODO delete
   const [cursorCoords, setCursorCoords] = useState([]);
   const [inputErrorMes, setInputErrorMes] = useState(null); // TODO delete
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [graphBounds, setGraphBoundsInternal] = useState({
     xMin: -10,
     xMax: 10,
@@ -161,8 +160,6 @@ export const GraphContextProvider = ({ children }) => {
         setInputErrorMes,
         inputErrors,
         setInputErrors,
-        isAudioEnabled,
-        setIsAudioEnabled,
         graphBounds,
         setGraphBounds,
         PlayFunction,

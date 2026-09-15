@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { useGraphContext } from "../../context/GraphContext";
+import { useMixer } from "../../context/MixerContext";
 import { Play } from "lucide-react";
 import { ensureToneStarted } from "../../utils/toneAudio";
 
@@ -10,12 +11,11 @@ const GraphControls = () => {
     setFunctionInput,
     cursorCoords,
     error,
-    isAudioEnabled,
-    setIsAudioEnabled,
     PlayFunction,
     setPlayFunction,
     inputRefs
   } = useGraphContext();
+  const { isAudioEnabled, toggleAudio } = useMixer();
 
   
   const PlayButtonClick = () => {
@@ -39,7 +39,7 @@ const GraphControls = () => {
       <button
           onClick={async () => {
             await ensureToneStarted();
-            setIsAudioEnabled((prev) => !prev);
+            toggleAudio();
           }}
         style={{
           marginLeft: "10px",

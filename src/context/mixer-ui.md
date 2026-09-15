@@ -7,6 +7,7 @@ You do **not** need Tone.js or audio-engine knowledge. Use the React hook `useMi
 Related files:
 
 - React API: [`MixerContext.jsx`](./MixerContext.jsx)
+- Mute controller: [`SonificationMuteController.jsx`](./SonificationMuteController.jsx)
 - Audio engine (do not import from UI): [`../audio/mixerBus.js`](../audio/mixerBus.js)
 - Provider is already wrapped in [`../App.jsx`](../App.jsx)
 
@@ -21,10 +22,10 @@ Treat the mixer like a volume desk with folders:
 1. **Sources** make sound (function tones, earcons, pink noise).
 2. Each source plugs into a **channel** (one fader + mute).
 3. Channels sit in a **group** (Instruments / Earcons / Noise).
-4. Groups go to a shared **master output**. The **P** key mute lives on master and is **not** part of `useMixer()`.
+4. Groups go to a shared **master output**. Master mute is part of `useMixer()` (`isAudioEnabled`, `isOutputOpen`, `audioModality`).
 
 ```
-source  →  channel fader  →  group fader  →  master (P key)  →  speakers
+source  →  channel fader  →  group fader  →  master (P / AUTO idle / overlays)  →  speakers
 ```
 
 Everyday analogy:
@@ -33,6 +34,37 @@ Everyday analogy:
 - **Channel** = “Guitar 1”, “Guitar 2”, “snare click”, “applause sample”
 
 Muting the **Instruments** group silences every function tone. Muting only `instrument:f1` leaves Function 2 playing.
+
+---
+
+## Audio modality (AUTO / MANUAL)
+
+The mixer also owns how the **whole** sonification is armed and muted. The two modalities are mutually exclusive; default is **AUTO**.
+
+```js
+import { useMixer, AUDIO_MODALITIES } from "../context/MixerContext";
+
+const { audioModality, setAudioModality, AUDIO_MODALITIES } = useMixer();
+
+setAudioModality(AUDIO_MODALITIES.AUTO);    // default
+setAudioModality(AUDIO_MODALITIES.MANUAL);
+// also accepts "auto" / "manual" (any case)
+```
+
+| | AUTO (default) | MANUAL |
+|---|---|---|
+| On page load | Sonification is off. Cursor can move with no sound. | Same: off until **P**. |
+| First enable | First cursor-move key (←/→, J/L, **B**, Space) arms audio as if **P** was pressed. Only once per page load. | Only **P** / header / skip link. |
+| After that | **P** (and header) toggle on/off. | Same as today. |
+| Idle | After 4s without keyboard/pointer activity, master mutes (clarinet no longer drones). Fade-out starts at 3.5s so the stop is gradual. Activity unmutes without needing **P**. Batch / held-arrow playback is not treated as idle. | Sound stays on until **P**. |
+| Overlays | Command palette and dialogs still mute while open. | Same. |
+
+`isAudioEnabled` is the user’s mute/unmute choice — drive the speaker icon from this. AUTO idle mute is temporary and does not change `isAudioEnabled` or the icon; chart activity resumes sound. `isOutputOpen` is whether sound actually reaches the speakers.
+
+Related files:
+
+- Mute policy: [`SonificationMuteController.jsx`](./SonificationMuteController.jsx)
+- Idle window: `AUDIO_IDLE_MUTE_MS` (4s) / `AUDIO_IDLE_FADE_START_MS` (3.5s) in [`MixerContext.jsx`](./MixerContext.jsx). Bounds announcements still use the shorter `USER_IDLE_DELAY_MS` in [`../utils/boundsAnnouncement.js`](../utils/boundsAnnouncement.js).
 
 ---
 
@@ -148,6 +180,13 @@ const {
   MIXER_GROUPS,        // { earcons, instruments, noise }
   MIXER_GROUP_LABELS,  // { earcons: "Earcons", ... }
   MIXER_CHANNELS,      // { tick, pinkNoise, sample(name), instrument(id) }
+  AUDIO_MODALITIES,    // { AUTO: "auto", MANUAL: "manual" }
+  audioModality,       // "auto" | "manual"
+  setAudioModality,    // (modality) => void
+  isAudioEnabled,      // user's mute/unmute choice — drive the speaker icon from this
+  setIsAudioEnabled,   // (bool | fn) => void
+  toggleAudio,         // P / header: toggle isAudioEnabled
+  isOutputOpen,        // true when sound should actually play
 } = useMixer();
 ```
 
@@ -160,11 +199,12 @@ Yes. `MixerProvider` subscribes to the mixer bus. When groups/channels are creat
 ## Boundaries (what not to do)
 
 1. **Mute/volume only.** Do not start/stop sonification, landmarks, or navigation from the mixer.
-2. **P is separate.** P mutes the whole app via master gain. Mixer faders are per group/channel.
+2. **Master vs faders.** `setAudioModality` / `setIsAudioEnabled` are the master gate. Mixer faders are per group/channel and do not replace **P**.
 3. **Volumes are 0–1**, not dB. Values outside that range are clamped.
 4. **No Tone.js in UI.** Do not import `mixerBus` or create Gain nodes. Call the setters.
 5. **Channels come and go.** Prefer group controls for a first UI. Key lists on `ch.id`, not array index.
 6. **Mute/volume can survive** a temporary audio rebuild. A channel may disappear from the live graph and reappear later with the same settings.
+7. **Modalities are exclusive.** There is one `audioModality` value, never AUTO and MANUAL at once.
 
 ---
 
@@ -365,6 +405,40 @@ function displayLabel(channel) {
 }
 ```
 
+### 5. AUTO / MANUAL modality toggle
+
+```jsx
+import { useMixer } from "../context/MixerContext";
+
+export function MixerModality() {
+  const { audioModality, setAudioModality, AUDIO_MODALITIES } = useMixer();
+
+  return (
+    <fieldset>
+      <legend>Audio modality</legend>
+      <label>
+        <input
+          type="radio"
+          name="audio-modality"
+          checked={audioModality === AUDIO_MODALITIES.AUTO}
+          onChange={() => setAudioModality(AUDIO_MODALITIES.AUTO)}
+        />
+        Auto
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="audio-modality"
+          checked={audioModality === AUDIO_MODALITIES.MANUAL}
+          onChange={() => setAudioModality(AUDIO_MODALITIES.MANUAL)}
+        />
+        Manual
+      </label>
+    </fieldset>
+  );
+}
+```
+
 ---
 
 ## How to test without a finished panel
@@ -376,3 +450,5 @@ function displayLabel(channel) {
    - `setGroupMuted(MIXER_GROUPS.earcons, true)` — landmarks/borders/ticks silent
    - `setChannelMuted(MIXER_CHANNELS.pinkNoise, true)` — no pink noise
 4. Confirm **P** still mutes everything regardless of mixer faders.
+5. Confirm AUTO (default): leave the clarinet ringing, wait ~3.5s for a fade then mute at 4s; move again and it returns. First ←/→ or **B** after a reload should arm audio without **P**.
+6. Confirm MANUAL: `setAudioModality(AUDIO_MODALITIES.MANUAL)` — idle no longer ducks, and cursor keys do not auto-enable.

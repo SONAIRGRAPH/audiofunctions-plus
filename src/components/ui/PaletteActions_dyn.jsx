@@ -3,6 +3,7 @@ import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, Circl
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
   ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, BookOpen, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
+import { useMixer } from "../../context/MixerContext";
 import { getFunctionNameN, updateFunctionN, setFunctionInstrumentN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN, findLandmarkByShortcut } from "../../utils/graphObjectOperations";
 import { getScreenPosition, jumpToLandmarkWithToast, addLandmarkAtCursorPosition, findLandmarkAtPosition } from "../../utils/landmarkUtils";
 import landmarkEarconManager from "../../utils/landmarkEarcons";
@@ -14,7 +15,8 @@ import { useInfoToast } from '../../context/InfoToastContext';
 import { ensureToneStarted } from "../../utils/toneAudio";
 
 export const useDynamicKBarActions = () => {
-  const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart, stepSize } = useGraphContext();
+  const { cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart, stepSize } = useGraphContext();
+  const { isAudioEnabled, toggleAudio, tryEnableFromCursorNavigation } = useMixer();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
   const { showInfoToast, showLandmarkToast } = useInfoToast();
@@ -221,7 +223,7 @@ export const useDynamicKBarActions = () => {
       parent: "quick-options",
       perform: async () => {
         await ensureToneStarted();
-        setIsAudioEnabled(prev => !prev);
+        toggleAudio();
         setTimeout(() => focusChart(), 100);
       },
       icon: isAudioEnabled
@@ -235,7 +237,12 @@ export const useDynamicKBarActions = () => {
       shortcut: ["b"],
       keywords: "play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole",
       parent: "quick-options",
-      perform: () => {setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })); setTimeout(() => focusChart(), 100);},
+      perform: async () => {
+        await ensureToneStarted();
+        await tryEnableFromCursorNavigation();
+        setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active }));
+        setTimeout(() => focusChart(), 100);
+      },
       icon: <Play className="size-5 shrink-0 opacity-70" />,
     },
 
@@ -618,7 +625,7 @@ export const useDynamicKBarActions = () => {
   },
 
 
-], [isAudioEnabled, cursorCoords, functionDefinitions, isReadOnly, focusChart, landmarks, activeFunction, activeFunctionIndex, graphBounds, stepSize]);
+], [isAudioEnabled, toggleAudio, tryEnableFromCursorNavigation, cursorCoords, functionDefinitions, isReadOnly, focusChart, landmarks, activeFunction, activeFunctionIndex, graphBounds, stepSize]);
 
   return null;
 };

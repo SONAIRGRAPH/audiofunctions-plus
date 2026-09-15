@@ -9,7 +9,8 @@ import GraphSonification from './components/graph/GraphSonification';
 import { DialogProvider, useDialog } from './context/DialogContext';
 import Header from './components/ui/Header';
 import { InstrumentsProvider } from './context/InstrumentsContext';
-import { MixerProvider } from './context/MixerContext';
+import { MixerProvider, useMixer } from './context/MixerContext';
+import SonificationMuteController from './context/SonificationMuteController';
 import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { PaletteActions } from './components/ui/PaletteActions_dyn';
 import { AnnouncementProvider } from './context/AnnouncementContext';
@@ -66,7 +67,8 @@ const AppContent = () => {
 
 const KBarWrapper = () => {
   // needed to wrap actions into GraphContextProvider
-  const { setIsAudioEnabled, focusChart } = useGraphContext();
+  const { setIsAudioEnabled } = useMixer();
+  const { focusChart } = useGraphContext();
 
   const handleSkipActivate = async (e) => {
     // Enable audio and focus the chart just like pressing "P"
@@ -119,6 +121,7 @@ const KBarWrapper = () => {
 
       <PaletteActions />
       <CommandBar />
+      <SonificationMuteController />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
         <Header />
         <div className="flex-1 overflow-auto">

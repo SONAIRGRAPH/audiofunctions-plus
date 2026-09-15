@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as Tone from "tone";
-import { useKBar, VisualState } from "kbar";
 import { useGraphContext } from "../../context/GraphContext";
 import { useInstruments } from "../../context/InstrumentsContext";
 import { useDialog } from "../../context/DialogContext";
+import { useMixer } from "../../context/MixerContext";
 import { GLOBAL_FREQUENCY_RANGE, InstrumentFrequencyType } from "../../config/instruments";
 import {
   getActiveFunctions,
@@ -22,7 +22,6 @@ import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../../audio/mixerBus";
 const GraphSonification = () => {
   const {
     cursorCoords,
-    isAudioEnabled,
     graphBounds,
     functionDefinitions,
     stepSize, // <-- get stepSize from context
@@ -31,6 +30,7 @@ const GraphSonification = () => {
     isShiftPressed, // <-- get Shift key state
     discreteBatchValidStartX // <-- get valid start X position for discrete batch sonification
   } = useGraphContext();
+  const { isOutputOpen, isIdleFading, AUDIO_IDLE_FADE_DURATION_MS } = useMixer();
 
   // Refs to track previous states for event detection
   const prevCursorCoordsRef = useRef(new Map()); // Track previous cursor positions
@@ -41,15 +41,12 @@ const GraphSonification = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from P and overlay mute
+  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from mixer master gate
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
 
   const { getInstrumentByName } = useInstruments();
-  const { isDialogOpen, isEditFunctionDialogOpen } = useDialog();
-  const { visualState } = useKBar((state) => ({ visualState: state.visualState }));
-  const isCommandPaletteOpen = visualState !== VisualState.hidden;
-  const isSonificationPaused = isCommandPaletteOpen || isDialogOpen;
+  const { isEditFunctionDialogOpen } = useDialog();
   const instrumentsRef = useRef(new Map()); // Map to store instrument references
   const channelsRef = useRef(new Map()); // Map to store channel references
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
@@ -59,8 +56,7 @@ const GraphSonification = () => {
   const prevActiveFunctionIdsRef = useRef(new Set()); // Track previously active function IDs to detect function switches
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
   const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
-  const prevAudioEnabledRef = useRef(isAudioEnabled);
-  const prevSonificationPausedRef = useRef(isSonificationPaused);
+  const prevOutputOpenRef = useRef(isOutputOpen);
   const NO_Y_VOLUME_DB = -25;
 
   // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
@@ -74,8 +70,8 @@ const GraphSonification = () => {
     channel.connect(mixerGain);
   };
 
-  // Last node before the audio device: mixer groups feed this. P and the
-  // command palette / dialogs only set gain 1/0; the sonification graph keeps running.
+  // Last node before the audio device: mixer groups feed this. SonificationMuteController
+  // (P, AUTO idle, command palette / dialogs) drives the target; the graph keeps running.
   useEffect(() => {
     if (!masterGainRef.current) {
       masterGainRef.current = new Tone.Gain(0).toDestination();
@@ -91,12 +87,35 @@ const GraphSonification = () => {
     };
   }, []);
 
+  // Apply master gate: immediate open/close, or a linear idle fade-out (3.5s→4s).
+  // cancelScheduledValues() snaps back to the last setValueAtTime (full volume),
+  // which caused a brief blip after the fade; hold the current automated value.
   useEffect(() => {
-    if (masterGainRef.current) {
-      const outputOpen = isAudioEnabled && !isSonificationPaused;
-      masterGainRef.current.gain.value = outputOpen ? 1 : 0;
+    const masterGain = masterGainRef.current;
+    if (!masterGain) return;
+
+    const param = masterGain.gain;
+    const now = Tone.now();
+    if (typeof param.cancelAndHoldAtTime === "function") {
+      param.cancelAndHoldAtTime(now);
+    } else {
+      const held = param.value;
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(held, now);
     }
-  }, [isAudioEnabled, isSonificationPaused]);
+
+    if (!isOutputOpen) {
+      param.setValueAtTime(0, now);
+      return;
+    }
+
+    if (isIdleFading) {
+      param.linearRampToValueAtTime(0, now + AUDIO_IDLE_FADE_DURATION_MS / 1000);
+      return;
+    }
+
+    param.setValueAtTime(1, now);
+  }, [isOutputOpen, isIdleFading, AUDIO_IDLE_FADE_DURATION_MS]);
 
   // Initialize tick synth
   useEffect(() => {
@@ -544,14 +563,12 @@ const GraphSonification = () => {
       return;
     }
 
-    // Unmute (P or overlay close) should replay the current pitch; discrete mode
-    // otherwise skips an unchanged pitch class and would stay silent.
-    const overlayJustClosed = prevSonificationPausedRef.current && !isSonificationPaused;
-    if (isAudioEnabled && (!prevAudioEnabledRef.current || overlayJustClosed)) {
+    // Unmute (P, overlay close, AUTO idle lift) should replay the current pitch;
+    // discrete mode otherwise skips an unchanged pitch class and would stay silent.
+    if (isOutputOpen && !prevOutputOpenRef.current) {
       lastPitchClassesRef.current.clear();
     }
-    prevAudioEnabledRef.current = isAudioEnabled;
-    prevSonificationPausedRef.current = isSonificationPaused;
+    prevOutputOpenRef.current = isOutputOpen;
 
     const isBatchPlayback =
       PlayFunction.active && PlayFunction.source === "play";
@@ -768,7 +785,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isAudioEnabled, isSonificationPaused]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isOutputOpen]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it

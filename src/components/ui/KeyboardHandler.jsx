@@ -104,7 +104,6 @@ export const useCenterAtCursor = () => {
 export default function KeyboardHandler() {
     const {
         setPlayFunction,
-        setIsAudioEnabled,
         setGraphBounds,
         inputRefs,
         graphSettings,
@@ -608,7 +607,7 @@ export default function KeyboardHandler() {
         document.removeEventListener("keydown", handleKeyDown);
         document.removeEventListener("keyup", handleKeyUp);
       };
-    }, [setPlayFunction, setIsAudioEnabled, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings, announce]);
+    }, [setPlayFunction, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings, announce]);
 
     return null;
 }
