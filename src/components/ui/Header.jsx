@@ -2,6 +2,7 @@ import React from "react";
 import { useKBar } from "kbar";
 import { Wand, Volume2, VolumeX } from "lucide-react";
 import { useGraphContext } from "../../context/GraphContext";
+import { LanguageSelector, useLanguage } from "./MultiLanguage";
 
 /**
  * Header component for the application
@@ -10,6 +11,7 @@ import { useGraphContext } from "../../context/GraphContext";
 const Header = () => {
   const { query } = useKBar();
   const { isAudioEnabled, setIsAudioEnabled, focusChart } = useGraphContext();
+  const { trn } = useLanguage();
 
   const toggleAudio = () => {
     setIsAudioEnabled(prev => !prev);
@@ -30,8 +32,8 @@ const Header = () => {
         <button
           onClick={toggleAudio}
           className="p-2  hover:text-foreground border-transparent bg-transparent"
-          aria-label={`${isAudioEnabled ? "Disable Audio" : "Enable Audio"}, keyboard shortcut: P`}
-          title={`${isAudioEnabled ? "Disable Audio" : "Enable Audio"} (P)`}
+          aria-label={`${isAudioEnabled ? trn("disableAudio") : trn("enableAudio")}, keyboard shortcut: P`}
+          title={`${isAudioEnabled ? trn("disableAudio") : trn("enableAudio")} (P)`}
         >
           {isAudioEnabled ? (
             <Volume2 className="size-7 text-primary" />
@@ -43,13 +45,15 @@ const Header = () => {
         <button
           onClick={query.toggle}
           className="btn-primary flex items-center gap-2"
-          aria-label={`Open Command Palette, keyboard shortcut: ${shortcutKey}`}
-          title={`Open Command Palette (${shortcutKey})`}
+          aria-label={`${trn("openCommandPalette")}, keyboard shortcut: ${shortcutKey}`}
+          title={`${trn("openCommandPalette")} (${shortcutKey})`}
         >
           <Wand className="size-5" />
-          <span className="hidden sm:inline">Commands</span>
+          <span className="hidden sm:inline">{trn("commands")}</span>  
           <span className="text-xs opacity-70 hidden md:inline" aria-hidden="true">({shortcutKey})</span>
         </button>
+
+        <LanguageSelector />
       </div>
     </header>
   );
