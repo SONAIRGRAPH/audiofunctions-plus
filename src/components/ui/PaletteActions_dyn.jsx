@@ -11,12 +11,14 @@ import { setTheme } from "../../utils/theme";
 import { useZoomBoard, useCenterAtCursor } from "./KeyboardHandler";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInfoToast } from '../../context/InfoToastContext';
+import { useLanguage } from "./MultiLanguage";
 
 export const useDynamicKBarActions = () => {
   const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart } = useGraphContext();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
   const { showInfoToast, showLandmarkToast } = useInfoToast();
+  const { trn } = useLanguage();
 
   // Function to jump to landmark using utility
   const jumpToLandmark = (landmark) => {
@@ -206,18 +208,18 @@ export const useDynamicKBarActions = () => {
     // quick options
     {
       id: "quick-options",
-      name: "Quick Options",
+      name: trn("quick-options"),
       shortcut: ["q"],
-      keywords: "quick, quickoptions",
+      keywords: trn("quick-options-key"),
       icon: <List className="size-5 shrink-0 opacity-70" />,
     },
 
 
     {
       id: "toggle-audio",
-      name: isAudioEnabled ? "Disable Sound" : "Enable Sound",
+      name: isAudioEnabled ? trn("disableAudio") : trn("enableAudio"),
       shortcut: ["p"],
-      keywords: "audio, sound, enable, disable, start, stop, toggle, sonify, sonification, music, tone, mute, unmute, volume, hearing",
+      keywords: trn("toggle-audio-key"),
       parent: "quick-options",
       perform: () => {setIsAudioEnabled(prev => !prev); setTimeout(() => focusChart(), 100);},
       icon: isAudioEnabled
@@ -227,9 +229,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "play-function",
-      name: "Play Function",
+      name: trn("play-function"), 
       shortcut: ["b"],
-      keywords: "play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole",
+      keywords: trn("play-function-key"),
       parent: "quick-options",
       perform: () => {setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })); setTimeout(() => focusChart(), 100);},
       icon: <Play className="size-5 shrink-0 opacity-70" />,
@@ -237,9 +239,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "next-function",
-      name: "Next Function",
+      name: trn("next-function"),
       shortcut: ["n"],
-      keywords: "switch, function, next, rotate, cycle, change, active, select, navigate, iterate, loop",
+      keywords: trn("next-function-key"),
       parent: "quick-options",
       perform: () => {switchToNextFunction(); setTimeout(() => focusChart(), 100);},
       icon: <ListRestart className="size-5 shrink-0 opacity-70" />,
@@ -247,9 +249,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "toggle-sonification-type",
-      name: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Continuous' : 'Discrete'}`,
+      name: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? trn("continuous") : trn("discrete")}`,
       shortcut: ["i"],
-      keywords: "sonification, instrument, discrete, continuous, guitar, clarinet, toggle, sound, type, mode, timbre",
+      keywords: trn("toggle-sonification-type-key"),
       parent: "quick-options",
       perform: () => {toggleSonificationType(); setTimeout(() => focusChart(), 100);},
       icon: <Music className="size-5 shrink-0 opacity-70" />,
@@ -257,9 +259,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "show-coordinates",
-      name: "Show Current Coordinates",
+      name: trn("show-coordinates"),
       shortcut: ["c"],
-      keywords: "coordinates, position, location, cursor, point, x, y, current, where, place",
+      keywords: trn("show-coordinates-key"),
       parent: "quick-options",
       perform: () => {showCoordinates(); setTimeout(() => focusChart(), 100);},
       icon: <MapPin className="size-5 shrink-0 opacity-70" />,
@@ -267,9 +269,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "show-view-bounds",
-      name: "Show current view bounds",
+      name: trn("show-view-bounds"),
       shortcut: ["v"],
-      keywords: "bound, view, range, axis, limits, window, viewport, boundaries, min, max, xmin, xmax, ymin, ymax, scale, zoom",
+      keywords: trn("show-view-bounds-key"),
       parent: "quick-options",
       perform: () => {showViewBounds(); setTimeout(() => focusChart(), 100);},
       icon: <Ruler className="size-5 shrink-0 opacity-70" />,
@@ -277,9 +279,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "center-at-cursor",
-      name: "Center View at Cursor",
+      name: trn("center-at-cursor"),
       shortcut: ["ctrl+z"],
-      keywords: "center, cursor, view, middle, position, focus, centering, navigate, jump, move",
+      keywords: trn("center-at-cursor-key"),
       parent: "quick-options",
       perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
       icon: <Target className="size-5 shrink-0 opacity-70" />,
@@ -287,9 +289,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "zoom-in",
-      name: "Zoom In",
+      name: trn("zoom-in"),
       shortcut: ["z (may hold)"],
-      keywords: "zoom, in, closer, magnify, enlarge, scale, view, detail",
+      keywords: trn("zoom-in-key"),
       parent: "quick-options",
       perform: () => {ZoomBoard(false);; setTimeout(() => focusChart(), 100);},
       icon: <ZoomIn className="size-5 shrink-0 opacity-70" />
@@ -297,9 +299,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "zoom-out",
-      name: "Zoom Out",
+      name: trn("zoom-out"),
       shortcut: ["shift+z (may hold)"],
-      keywords: "zoom, out, farther, shrink, reduce, scale, view, overview",
+      keywords: trn("zoom-out-key"),
       parent: "quick-options",
       perform: () => {ZoomBoard(true);; setTimeout(() => focusChart(), 100);},
       icon: <ZoomOut className="size-5 shrink-0 opacity-70" />,
@@ -307,9 +309,9 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "reset-view",
-      name: "Reset View",
+      name: trn("reset-view"),
       shortcut: ["r"],
-      keywords: "reset, restore, standard, default, original, initial, revert, back",
+      keywords: trn("reset-view-key"),
       parent: "quick-options",
       perform: () => {
         const defaultView = graphSettings?.defaultView;
@@ -334,8 +336,8 @@ export const useDynamicKBarActions = () => {
   //landmarks
   {
     id: "landmarks",
-    name: "Landmarks",
-    keywords: "landmark, bookmarks, markers, points, navigation, jump, goto, position, coordinates",
+    name: trn("landmarks"),
+    keywords: trn("landmarks-key"),
     icon: <MapPin className="size-5 shrink-0 opacity-70" />,
   },
 
@@ -343,9 +345,9 @@ export const useDynamicKBarActions = () => {
   // Individual landmark actions (jump/navigate)
   ...landmarks.map((landmark, index) => ({
     id: `jump-to-landmark-${index}`,
-    name: `${landmark.label || `Landmark ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
+    name: `${landmark.label || `${trn("landmark")} ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
     shortcut: landmark.shortcut ? [`ctrl+${landmark.shortcut}`] : undefined,
-    keywords: `landmark, jump, goto, navigate, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`,
+    keywords: `${trn("landmark-key")}, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`,
     parent: "landmarks",
     priority: Priority.HIGH,
     perform: () => {
@@ -358,8 +360,8 @@ export const useDynamicKBarActions = () => {
   // Edit landmarks parent - only show if there are landmarks
   ...(landmarks.length > 0 ? [{
     id: "edit-landmarks",
-    name: "Edit Landmarks",
-    keywords: "edit, modify, change, landmarks, manage, update, configure",
+    name: trn("edit-landmarks"),
+    keywords: trn("edit-landmarks-key"),
     parent: "landmarks",
     icon: <Edit className="size-5 shrink-0 opacity-70" />,
   }] : []),
@@ -367,8 +369,8 @@ export const useDynamicKBarActions = () => {
   // Edit landmark actions
   ...landmarks.map((landmark, index) => ({
     id: `edit-landmark-${index}`,
-    name: `Edit ${landmark.label || `Landmark ${index + 1}`}`,
-    keywords: `edit, modify, change, landmark, ${landmark.label || ''}, ${landmark.shortcut ? `e${landmark.shortcut}` : ''}`,
+    name: `${trn("edit")} ${landmark.label || `${trn("landmark")} ${index + 1}`}`,
+    keywords: `${trn("edit-landmark-key")}, ${landmark.label || ''}, ${landmark.shortcut ? `e${landmark.shortcut}` : ''}`,
     parent: "edit-landmarks",
     priority: Priority.LOW,
     perform: () => {
@@ -385,9 +387,9 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "add-landmark",
-    name: "Add Landmark at Cursor",
+    name: trn("add-landmark"),
     shortcut: ["ctrl+b"],
-    keywords: "add, create, new, landmark, bookmark, marker, current, position, cursor",
+    keywords: trn("add-landmark-key"),
     parent: "landmarks",
     perform: () => {
       addLandmarkAtCursor();
@@ -408,8 +410,8 @@ export const useDynamicKBarActions = () => {
   // Function Options
   {
     id: "function-options",
-    name: "Functions",
-    keywords: "function, options, settings, configure, manage, edit, change",
+    name: trn("function-options"),
+    keywords: trn("function-options-key"),
     icon: <SquareActivity className="size-5 shrink-0 opacity-70" />,
   },
 
@@ -419,9 +421,9 @@ export const useDynamicKBarActions = () => {
 
     return {
       id: `show-function-${func.id}`,
-      name: `Show ${functionName}`,
+      name: `${trn("show")} ${functionName}`,
       shortcut: index < 9 ? [(index + 1).toString()] : undefined,
-      keywords: `function, show, display, activate, select, switch, ${functionName}, graph, plot, f${index + 1}, Choose ${functionName}, Choose ${index + 1}`,
+      keywords: `${trn("show-function-key")}, ${functionName}, f${index + 1}, Choose ${functionName}, Choose ${index + 1}`,
       parent: "function-options",
       priority: Priority.HIGH,
       perform: () => {showOnlyFunction(index); setTimeout(() => focusChart(), 100);},
@@ -433,7 +435,7 @@ export const useDynamicKBarActions = () => {
   ...(!isFullyRestricted ? [
     {
       id: "change-function",
-      name: isReadOnly ? "View Functions" : "Edit Functions",
+      name: isReadOnly ? trn("view-functions") : trn("edit-functions"),
       shortcut: ["f"],
       parent: "function-options",
       priority: Priority.HIGH,
@@ -448,15 +450,15 @@ export const useDynamicKBarActions = () => {
   // Diagram Options
   {
     id: "diagram-options",
-    name: "Diagram Options",
-    keywords: "diagram, graph, chart, plot, options, settings, configuration, view, display, visual",
+    name: trn("diagram-options"),
+    keywords: trn("diagram-options-key"),
     icon: <FileChartLine className="size-5 shrink-0 opacity-70" />,
   },
 
   {
     id: "set-view",
-    name: "Set View",
-    keywords: "view, bounds, range, limits, window, axis, xmin, xmax, ymin, ymax, zoom, scale, viewport, boundaries, change, set, configure",
+    name: trn("set-view"),
+    keywords: trn("set-view-key"),
     parent: "diagram-options",
     perform: () => openDialog("change-graph-bound"),
     icon: <ChartArea className="size-5 shrink-0 opacity-70" />,
@@ -464,9 +466,9 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "movement-adjustments",
-    name: "Movement Adjustments",
+    name: trn("movement-adjustments"),
     shortcut: ["m"],
-    keywords: "movement, speed, step, navigation, adjustments, cursor, motion, velocity, increment, stepsize, keyboard, arrow, smooth, stepwise",
+    keywords: trn("movement-adjustments-key"),
     parent: "diagram-options",
     perform: () => openDialog("movement-adjustments"),
     icon: <CircleGauge className="size-5 shrink-0 opacity-70" />,
@@ -475,8 +477,8 @@ export const useDynamicKBarActions = () => {
 
     {
       id: "navigation-help",
-      name: "Navigation Help",
-      keywords: "navigation, shortcuts, keyboard, controls, help, guide, movement, cursor, zoom, pan, audio, instructions",
+      name: trn("navigation-help"),
+      keywords: trn("navigation-help-key"),
       // parent: "help-section",
       perform: () => openDialog("navigation-help"),
       icon: <Move className="size-5 shrink-0 opacity-70" />,
@@ -487,31 +489,31 @@ export const useDynamicKBarActions = () => {
   ...(!isReadOnly && !isFullyRestricted ? [
     {
       id: "import-export",
-      name: "Import/Export",
-      keywords: "import, export, json, file, save, load, share, backup, restore, transfer, exchange",
+      name: trn("import-export"),
+      keywords: trn("import-export-key"),
       icon: <Import className="size-5 shrink-0 opacity-70" />,
       priority: Priority.LOW
     },
     {
       id: "share",
-      name: "Share",
-      keywords: "share, export, link, url, collaborate, send, distribute, publish, online",
+      name: trn("share"),
+      keywords: trn("share-key"),
       parent: "import-export",
       perform: () => openDialog("share"),
       icon: <Share2 className="size-5 shrink-0 opacity-70" />,
     },
     {
       id: "import-json",
-      name: "Import from file",
-      keywords: "import, json, upload, file, load, open, restore, read, backup",
+      name: trn("import-json"),
+      keywords: trn("import-json-key"),
       parent: "import-export",
       perform: () => openDialog("import-json"),
       icon: <FileUp className="size-5 shrink-0 opacity-70" />,
     },
     {
       id: "export-json",
-      name: "Export as file",
-      keywords: "export, json, download, save, file, backup, store, preserve",
+      name: trn("export-json"),
+      keywords: trn("export-json-key"),
       parent: "import-export",
       perform: () => openDialog("export-json"),
       icon: <FileDown className="size-5 shrink-0 opacity-70" />,
@@ -522,8 +524,8 @@ export const useDynamicKBarActions = () => {
   ...(isReadOnly || isFullyRestricted ? [
     {
       id: "import-json",
-      name: "Import from file",
-      keywords: "import, json, upload, file, load, open, restore, read, backup",
+      name: trn("import-json"),
+      keywords: trn("import-json-key"),
       perform: () => openDialog("import-json"),
       icon: <FileUp className="size-5 shrink-0 opacity-70" />,
       priority: Priority.LOW
@@ -533,15 +535,15 @@ export const useDynamicKBarActions = () => {
   // Change theme
   {
     id: "change-theme",
-    name: "Change Theme",
-    keywords: "theme, appearance, color, style, visual, dark, light, contrast, accessibility, colorblind",
+    name: trn("change-theme"),
+    keywords: trn("change-theme-key"),
     icon: <SwatchBook className="size-5 shrink-0 opacity-70" />,
   },
 
   {
     id: "system-theme",
-    name: "Use System Theme",
-    keywords: "theme, system, automatic, os, operating, preference, default, follow",
+    name: trn("system-theme"),
+    keywords: trn("system-theme-key"),
     parent: "change-theme",
     perform: () => {setTheme("system"); announce("Theme set to system preference");},
     icon: <SunMoon className="size-5 shrink-0 opacity-70" />,
@@ -549,8 +551,8 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "light-theme",
-    name: "Light Theme",
-    keywords: "theme, light, bright, white, day, normal, standard",
+    name: trn("light-theme"),
+    keywords: trn("light-theme-key"),
     parent: "change-theme",
     perform: () => {setTheme("light"); announce("Theme set to light mode");},
     icon: <Sun className="size-5 shrink-0 opacity-70" />,
@@ -558,8 +560,8 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "dark-theme",
-    name: "Dark Theme",
-    keywords: "theme, dark, night, black, low, light, eyes",
+    name: trn("dark-theme"),
+    keywords: trn("dark-theme-key"),
     parent: "change-theme",
     perform: () => {setTheme("dark"); announce("Theme set to dark mode");},
     icon: <Moon className="size-5 shrink-0 opacity-70" />,
@@ -567,8 +569,8 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "high-contrast-theme",
-    name: "High Contrast Theme",
-    keywords: "theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold",
+    name: trn("high-contrast-theme"),
+    keywords: trn("high-contrast-theme-key"),
     parent: "change-theme",
     perform: () => {setTheme("high-contrast"); announce("Theme set to high contrast mode");},
     icon: <Contrast className="size-5 shrink-0 opacity-70" />,
@@ -576,8 +578,8 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "deuteranopia-protanopia-friendly-theme",
-    name: "Deuteranopia/Protanopia Friendly Theme",
-    keywords: "theme, deuteranopia, protanopia, colorblind, accessibility, vision, friendly, color, blind, impaired, green, red",
+    name: trn("deuteranopia-protanopia-friendly-theme"),
+    keywords: trn("deuteranopia-protanopia-friendly-theme-key"),
     parent: "change-theme",
     perform: () => {setTheme("deuteranopia-protanopia-friendly"); announce("Theme set to deuteranopia/protanopia friendly mode");},
     icon: <Eye className="size-5 shrink-0 opacity-70" />,
@@ -586,16 +588,16 @@ export const useDynamicKBarActions = () => {
   // Help section
   {
     id: "help-section",
-    name: "Help & Information",
-    keywords: "help, information, about, tutorial, guide, documentation, manual, instructions, support",
+    name: trn("help-section"),
+    keywords: trn("help-section-key"),
     icon: <HelpCircle className="size-5 shrink-0 opacity-70" />,
     priority: Priority.LOW,
   },
 
   {
     id: "help",
-    name: "Help",
-    keywords: "help, tutorial, guide, welcome, introduction, getting, started, how, to, use, learn, documentation, manual, instructions",
+    name: trn("help"),
+    keywords: trn("help-key"),
     shortcut: ["F1"],
     parent: "help-section",
     perform: () => openDialog("welcome"),
@@ -605,8 +607,8 @@ export const useDynamicKBarActions = () => {
 
   {
     id: "about",
-    name: "About AudioFunctions+",
-    keywords: "about, info, information, copyright, license, developers, version, team, credits, acknowledgments, universities, funding, eu, project",
+    name: trn("about"),
+    keywords: trn("about-key"),
     parent: "help-section",
     perform: () => openDialog("about"),
     icon: <Info className="size-5 shrink-0 opacity-70" />,

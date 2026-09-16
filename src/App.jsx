@@ -13,21 +13,24 @@ import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { PaletteActions } from './components/ui/PaletteActions_dyn';
 import { AnnouncementProvider } from './context/AnnouncementContext';
 import { InfoToastProvider } from './context/InfoToastContext';
+import { MultiLanguageProvider } from "./components/ui/MultiLanguage";
 
 function App() {
   return (
-    <InstrumentsProvider>
-      <GraphContextProvider>
-        <AnnouncementProvider>
-          <InfoToastProvider>
-            <DialogProvider>
-              <KeyboardHandler />
-              <AppContent />
-            </DialogProvider>
-          </InfoToastProvider>
-        </AnnouncementProvider>
-      </GraphContextProvider>
-    </InstrumentsProvider>
+    <MultiLanguageProvider>
+      <InstrumentsProvider>
+        <GraphContextProvider>
+          <AnnouncementProvider>
+            <InfoToastProvider>
+              <DialogProvider>
+                <KeyboardHandler />
+                <AppContent />
+              </DialogProvider>
+            </InfoToastProvider>
+          </AnnouncementProvider>
+        </GraphContextProvider>
+      </InstrumentsProvider>
+    </MultiLanguageProvider>
   );
 }
 
