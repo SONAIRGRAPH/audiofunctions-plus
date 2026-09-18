@@ -10,6 +10,11 @@
       light default theme flashes up on reload. Has to stay in sync with
       src/utils/prefs.js and src/utils/theme.js, and is deliberately kept small
       and free of module imports so it runs blocking.
+
+      It knows nothing about the values a theme suggests, and does not need to:
+      'auto' goes into the attribute as is, and the cascade in theme.css picks
+      the theme's value. Only 'system' is resolved here, because a theme cannot
+      suggest itself.
     -->
     <script>
       (function () {
@@ -20,8 +25,8 @@
             values: ['system', 'light', 'dark', 'high-contrast', 'deuteranopia-protanopia-friendly'],
             fallback: 'system'
           },
-          { key: 'lineWidth', attr: 'data-line-width', values: ['thin', 'normal', 'thick', 'x-thick'], fallback: 'normal' },
-          { key: 'textSize', attr: 'data-text-size', values: ['sm', 'normal', 'lg', 'xl'], fallback: 'normal' }
+          { key: 'lineWidth', attr: 'data-line-width', values: ['auto', 'thin', 'normal', 'thick', 'x-thick'], fallback: 'auto' },
+          { key: 'textSize', attr: 'data-text-size', values: ['auto', 'sm', 'normal', 'lg', 'xl'], fallback: 'auto' }
         ];
         for (var i = 0; i < prefs.length; i++) {
           var pref = prefs[i];

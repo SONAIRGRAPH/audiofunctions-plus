@@ -16,6 +16,26 @@
 /** Every defined preference, in definition order. */
 const registry = [];
 
+/**
+ * Where an 'auto' preference looks up the value its theme suggests.
+ *
+ * Injected by theme.js at module scope rather than imported: the presets belong
+ * with the themes, and importing them here would close the import cycle, since
+ * theme.js already depends on this file.
+ *
+ * The lookup reads the stored theme, not the attribute on <html>, so it does not
+ * care whether the theme has been applied yet -- applyStoredPreferences() runs
+ * the axes in definition order, and the theme is defined last.
+ *
+ * @type {(axisKey: string) => string|undefined}
+ */
+let readPreset = () => undefined;
+
+/** @param {(axisKey: string) => string|undefined} lookup */
+export function setPresetSource(lookup) {
+  readPreset = typeof lookup === 'function' ? lookup : () => undefined;
+}
+
 function readStored(key) {
   try {
     return localStorage.getItem(key);
@@ -44,7 +64,8 @@ function writeStored(key, value) {
  *                                    stored value is invalid
  * @param {(value: string) => string} [config.resolve]
  *        Translates an abstract value into the one actually applied. Needed for
- *        'system', which means 'light' or 'dark' depending on the OS setting.
+ *        'system', which means 'light' or 'dark' depending on the OS setting,
+ *        and for 'auto', which means whatever the active theme suggests.
  *        Without resolve the value is the attribute value.
  * @returns {{key: string, attr: string, values: string[], fallback: string,
  *            get: () => string, getResolved: () => string,
@@ -96,30 +117,71 @@ export function applyStoredPreferences() {
    The theme independent axes.
 
    Both are wired end to end: values are persisted, the attribute is set and
-   theme.css reacts to it. The command palette does not expose them, so they
-   are set from the console:
+   theme.css reacts to it. No UI exposes them yet, so they are set from the
+   console:
 
      document.documentElement.dataset.lineWidth = 'x-thick'
      document.documentElement.dataset.textSize  = 'xl'
+
+   'auto' means "whatever the theme suggests" and carries no resolve(): both are
+   visible at the first paint, so the cascade resolves them, not this file (see
+   section 3 of theme.css). The literal 'auto' matches none of the axis rules,
+   which lets the theme's value stand -- and keeps the inline script in
+   index.html free of any knowledge about themes. shortcutPosition below is the
+   other case: invisible at first paint, therefore resolved here in JS.
    --------------------------------------------------------------------------- */
 
-export const LINE_WIDTHS = ['thin', 'normal', 'thick', 'x-thick'];
+export const LINE_WIDTHS = ['auto', 'thin', 'normal', 'thick', 'x-thick'];
 
 export const lineWidthPref = definePreference({
   key: 'lineWidth',
   attr: 'data-line-width',
   values: LINE_WIDTHS,
-  fallback: 'normal',
+  fallback: 'auto',
 });
 
-export const TEXT_SIZES = ['sm', 'normal', 'lg', 'xl'];
+export const TEXT_SIZES = ['auto', 'sm', 'normal', 'lg', 'xl'];
 
 export const textSizePref = definePreference({
   key: 'textSize',
   attr: 'data-text-size',
   values: TEXT_SIZES,
-  fallback: 'normal',
+  fallback: 'auto',
 });
+
+/* ---------------------------------------------------------------------------
+   Shortcut position in the command palette
+
+   The matching CSS lives in src/styles/command-palette.css.
+
+   The first axis with a theme preset: 'auto' takes its value from the active
+   theme (the prefs field in THEMES), anything else is a deliberate choice by the
+   user and survives a theme change untouched.
+
+   Like the two axes above it has no UI yet -- the settings menu that will own
+   all three is still to come, and until then picking a theme is the only thing
+   that moves it. Labels and screen reader announcements are that menu's job and
+   get written there, for every axis at once and in one vocabulary.
+
+   Deliberately absent from the inline script in index.html: that script guards
+   the first paint, and the palette is closed at that point.
+   applyStoredPreferences() sets the attribute long before it can open. That is
+   also why this axis may resolve its preset here in JS, while the two above have
+   to leave it to the cascade.
+   --------------------------------------------------------------------------- */
+
+/** Where a command's key hint is drawn: at the end of the row, or right after
+    the command name. */
+export const SHORTCUT_POSITIONS = ['auto', 'end', 'inline'];
+
+export const shortcutPositionPref = definePreference({
+  key: 'shortcutPosition',
+  attr: 'data-shortcut-position',
+  values: SHORTCUT_POSITIONS,
+  fallback: 'auto',
+  resolve: (value) => (value === 'auto' ? readPreset('shortcutPosition') ?? 'end' : value),
+});
+
 
 /**
  * Numeric factor of the current line width.

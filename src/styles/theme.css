@@ -14,9 +14,11 @@
      5. Themes              one block per theme
      6. Component tokens    themed components with their own token namespace
 
-   The order matters: :root, [data-theme="..."] and [data-line-width="..."] all
-   have the same specificity, so whatever comes last wins. Themes are last
-   because they may override base values from section 2.
+   The order matters: :root and [data-theme="..."] have the same specificity, so
+   whatever comes last wins. Themes are last because they may override base
+   values from section 2 -- and because they may suggest a value for one of the
+   preference axes. The axis rules in section 3 carry an html prefix, so a value
+   the user picked deliberately still outranks that suggestion.
 
    To add a theme:
      1. Copy a block in section 5 and adjust its values.
@@ -89,8 +91,8 @@
 /* ============================================================================
    3. Preference axes
 
-   Two settings that apply independently of the theme. Up to three attributes
-   therefore sit side by side on <html>:
+   Two settings that apply independently of the theme. Every customization is
+   its own attribute, so they sit side by side on <html>:
 
      <html data-theme="high-contrast" data-line-width="thick" data-text-size="lg">
 
@@ -98,8 +100,17 @@
    combination of theme x width x size is valid without being maintained
    individually.
 
-   The defaults must precede the attribute blocks, otherwise they would win
-   (same specificity, later position).
+   Three layers, resolved by the cascade alone -- no JavaScript involved:
+
+     :root                      the neutral default
+     [data-theme="..."]         what a theme suggests (section 5, optional)
+     html[data-<axis>="..."]    what the user picked -- wins through the prefix
+
+   An axis the user has not touched carries the literal value 'auto'. It matches
+   none of the rules below, so the theme's suggestion stands. That is also why
+   the inline script in index.html needs no knowledge of themes: it writes
+   'auto', and the correct value is on screen at the very first paint instead of
+   flashing once React has booted.
    ============================================================================ */
 :root {
   --af-stroke-scale: 1;
@@ -107,19 +118,19 @@
 }
 
 /* Line width -- multiplies every --af-stroke-* and --af-ring value. */
-[data-line-width="thin"]    { --af-stroke-scale: 0.7; }
-[data-line-width="normal"]  { --af-stroke-scale: 1;   }
-[data-line-width="thick"]   { --af-stroke-scale: 1.5; }
-[data-line-width="x-thick"] { --af-stroke-scale: 2.2; }
+html[data-line-width="thin"]    { --af-stroke-scale: 0.7; }
+html[data-line-width="normal"]  { --af-stroke-scale: 1;   }
+html[data-line-width="thick"]   { --af-stroke-scale: 1.6; }
+html[data-line-width="x-thick"] { --af-stroke-scale: 2.2; }
 
 /* Text size -- scales the root font size. Since both the Tailwind text-*
    utilities and the spacing namespace are rem based, type and spacing grow
    together the way browser zoom does, so text never overflows its buttons or
    dialogs. At factor 1 the rule is a no-op. */
-[data-text-size="sm"]     { --af-text-scale: 0.9;  }
-[data-text-size="normal"] { --af-text-scale: 1;    }
-[data-text-size="lg"]     { --af-text-scale: 1.15; }
-[data-text-size="xl"]     { --af-text-scale: 1.3;  }
+html[data-text-size="sm"]     { --af-text-scale: 0.9;  }
+html[data-text-size="normal"] { --af-text-scale: 1;    }
+html[data-text-size="lg"]     { --af-text-scale: 1.2; }
+html[data-text-size="xl"]     { --af-text-scale: 1.4;  }
 
 html {
   font-size: calc(100% * var(--af-text-scale));
@@ -376,6 +387,15 @@ html {
 
   /* -- Dimensions: base values only, the user scale still applies on top -- */
   --af-ring-base: 5px;
+
+  /* -- What this theme suggests for the independent axes --
+     Larger type and heavier strokes belong to the purpose of this theme, so it
+     asks for them rather than waiting for the user to find two more settings.
+     Only a suggestion: html[data-text-size="..."] and html[data-line-width="..."]
+     outrank this block, so anyone who picked a size keeps it. Both use a factor
+     from the axis itself, so the value stays nameable. */
+  --af-text-scale:   1.2; /* the step behind data-text-size="lg" */
+  --af-stroke-scale: 1.6;  /* the step behind data-line-width="thick" */
 }
 
 

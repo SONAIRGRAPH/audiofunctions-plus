@@ -131,3 +131,28 @@ html[data-theme] .cp-option--active .cp-kbd {
   border-color: currentColor;
   background: transparent;
 }
+
+/* ---------------------------------------------------------------------------
+   Shortcut position -- an independent preference axis like theme or text size
+   (data-shortcut-position on <html>, defined in src/utils/prefs.js)
+
+   The component renders the key hint as a sibling of the text box, and that box
+   carries flex: 1 -- that single value is the whole reason the hint ends up at
+   the far right. Letting the box take only the width it needs puts the hint
+   directly behind the text instead.
+
+   The chevron keeps its place at the end either way: as a submenu marker it is
+   easier to read as an aligned column than scattered across the rows.
+
+   No theme appears in these selectors on purpose. The high-contrast theme does
+   default to this layout, but it gets there as a preset on its THEMES entry,
+   which sets the attribute -- so the user can still overrule it. Matching on
+   [data-theme] here would take that choice away again.
+   --------------------------------------------------------------------------- */
+html[data-shortcut-position="inline"] .cp-option__text {
+  flex: 0 1 auto;
+}
+
+html[data-shortcut-position="inline"] .cp-chevron {
+  margin-left: auto;
+}

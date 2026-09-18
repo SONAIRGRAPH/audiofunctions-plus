@@ -7,19 +7,29 @@
  * The command palette additionally needs an icon in THEME_ICONS in
  * components/ui/usePaletteItems.jsx.
  *
+ * A theme is a color theme -- src/styles/theme.css holds nothing but colors and
+ * dimensions. Anything else a theme wants goes into its `prefs` field, which
+ * seeds the other display axes without taking them away from the user.
+ *
  * The underlying mechanics (localStorage, attribute on <html>, validation)
  * live in prefs.js and are shared with the other display preferences.
  */
 
-import { definePreference, applyStoredPreferences } from './prefs';
+import { definePreference, applyStoredPreferences, setPresetSource } from './prefs';
 
 /**
  * Registry of every selectable theme.
  *
  * 'system' is not a CSS block but follows the operating system setting and
- * resolves to either 'light' or 'dark'.
+ * resolves to either 'light' or 'dark'. It needs no `prefs` of its own -- the
+ * preset is looked up on the resolved theme.
  *
- * @type {{id: string, label: string, keywords: string, announcement: string}[]}
+ * `prefs` is what a theme suggests for the other display axes. It only takes
+ * effect while that axis is set to 'auto'; a value the user picked deliberately
+ * is never overwritten by a theme change.
+ *
+ * @type {{id: string, label: string, keywords: string, announcement: string,
+ *         prefs?: Record<string, string>}[]}
  */
 export const THEMES = [
   {
@@ -45,6 +55,10 @@ export const THEMES = [
     label: 'High Contrast Theme',
     keywords: 'theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold',
     announcement: 'Theme set to high contrast mode',
+    // Screen magnification is common in this theme, and a key hint at the far
+    // end of the row easily ends up outside the magnified viewport, cut off
+    // from the command it belongs to.
+    prefs: { shortcutPosition: 'inline' },
   },
   {
     id: 'deuteranopia-protanopia-friendly',
@@ -68,11 +82,21 @@ export const themePref = definePreference({
 });
 
 /**
+ * Teaches prefs.js where the 'auto' value of an axis finds its theme preset.
+ * Keyed on the resolved theme, so 'system' on a dark desktop gets the dark
+ * theme's preset rather than none at all.
+ */
+setPresetSource((axisKey) => THEMES.find((theme) => theme.id === getResolvedTheme())?.prefs?.[axisKey]);
+
+/**
  * Sets the theme and remembers it.
  * @param {string} theme - an id from THEMES
  */
 export function setTheme(theme) {
   themePref.set(theme);
+  // Axes on 'auto' resolve against the theme, so what they apply changes even
+  // though nothing about them was stored.
+  applyStoredPreferences();
 }
 
 /**
@@ -105,7 +129,9 @@ export function initializeTheme() {
 
   systemDarkQuery().addEventListener('change', () => {
     if (getTheme() === 'system') {
-      themePref.apply();
+      // Not just themePref: the OS switch changes the resolved theme, and with
+      // it the preset every axis on 'auto' follows.
+      applyStoredPreferences();
     }
   });
 }
