@@ -34,7 +34,6 @@
   /* Borders and states */
   --color-border:          var(--af-border);
   --color-hover-border:    var(--af-border-hover);
-  --color-hover-full:      var(--af-hover-fill);
   --color-focus-border:    var(--af-border-focus);
   --color-contrast-border: var(--af-border-contrast);
 }

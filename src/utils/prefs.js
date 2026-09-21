@@ -182,6 +182,28 @@ export const shortcutPositionPref = definePreference({
   resolve: (value) => (value === 'auto' ? readPreset('shortcutPosition') ?? 'end' : value),
 });
 
+/* ---------------------------------------------------------------------------
+   Highlight style
+
+   How the active entry of a list is marked: a filled row, or a ring around it.
+   Only the command palette reads it today (src/styles/command-palette.css), but
+   the name is kept generic on purpose -- any other list with an active entry
+   can follow the same attribute.
+
+   Same kind of axis as shortcutPosition: invisible at first paint, so it
+   resolves its theme preset here in JS and stays out of index.html.
+   --------------------------------------------------------------------------- */
+
+export const HIGHLIGHT_STYLES = ['auto', 'fill', 'outline'];
+
+export const highlightStylePref = definePreference({
+  key: 'highlightStyle',
+  attr: 'data-highlight-style',
+  values: HIGHLIGHT_STYLES,
+  fallback: 'auto',
+  resolve: (value) => (value === 'auto' ? readPreset('highlightStyle') ?? 'fill' : value),
+});
+
 
 /**
  * Numeric factor of the current line width.
@@ -189,7 +211,8 @@ export const shortcutPositionPref = definePreference({
  * CSS covers SVG on its own, since the stroke-width tokens already scale.
  * JSXGraph however takes point sizes as plain numbers
  * (board.create(..., {size: 4})), which CSS cannot reach -- that is what this
- * factor is for.
+ * factor is for. Read by useLineWidthScale() in components/graph/GraphView.jsx,
+ * which also keeps it current when the theme or the line width changes.
  *
  * @returns {number}
  */

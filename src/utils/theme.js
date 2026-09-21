@@ -55,10 +55,15 @@ export const THEMES = [
     label: 'High Contrast Theme',
     keywords: 'theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold',
     announcement: 'Theme set to high contrast mode',
-    // Screen magnification is common in this theme, and a key hint at the far
-    // end of the row easily ends up outside the magnified viewport, cut off
-    // from the command it belongs to.
-    prefs: { shortcutPosition: 'inline' },
+    prefs: {
+      // Screen magnification is common in this theme, and a key hint at the far
+      // end of the row easily ends up outside the magnified viewport, cut off
+      // from the command it belongs to.
+      shortcutPosition: 'inline',
+      // A ring instead of the solid accent fill: the row keeps its black
+      // background and white text, and only the yellow ring marks it.
+      highlightStyle: 'outline',
+    },
   },
   {
     id: 'deuteranopia-protanopia-friendly',
