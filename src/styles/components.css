@@ -1,0 +1,279 @@
+/* ============================================================================
+   COMPONENTS
+   ----------------------------------------------------------------------------
+   Reusable UI building blocks. Every color and stroke width comes from
+   theme.css -- no hex value and no fixed ring width appears here.
+
+   Unlayered so the rules take precedence over Tailwind's utilities.
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------------------
+   Buttons
+   --------------------------------------------------------------------------- */
+.btn-primary {
+  background-color: var(--af-primary);
+  color: var(--af-text-title);
+  border-color: var(--af-primary);
+  box-shadow: var(--af-shadow-sm);
+}
+
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-secondary {
+  background-color: var(--af-bg);
+  color: var(--af-text);
+  border-color: var(--af-border);
+  box-shadow: var(--af-shadow-sm);
+}
+
+.btn-secondary:focus {
+  outline-width: var(--af-ring);
+  outline-style: solid;
+  outline-color: var(--af-border-focus);
+}
+
+.btn-neutral {
+  background-color: var(--af-surface);
+  color: var(--af-text);
+  border-color: var(--af-surface);
+  box-shadow: var(--af-shadow-sm);
+}
+
+.btn-neutral:hover {
+  opacity: 1;
+  transform: none;
+  outline-width: var(--af-ring);
+  outline-style: solid;
+  outline-color: var(--af-border-hover);
+}
+
+.btn-neutral:focus {
+  outline-width: var(--af-ring);
+  outline-style: solid;
+  outline-color: var(--af-border-focus);
+}
+
+.btn-danger {
+  background-color: var(--af-danger);
+  color: var(--af-text-title);
+  border-color: var(--af-danger);
+  box-shadow: var(--af-shadow-sm);
+}
+
+.btn-danger:disabled,
+.btn-danger[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* High contrast: bold black text on the accent color, plus a visible focus
+   ring in the contrast color. */
+[data-theme="high-contrast"] .btn-primary {
+  background-color: var(--af-c-hc-accent);
+  color: var(--af-c-hc-background);
+  border-color: var(--af-c-hc-accent);
+  font-weight: 700;
+}
+
+[data-theme="high-contrast"] .btn-primary:focus,
+[data-theme="high-contrast"] .btn-danger:focus {
+  outline-width: var(--af-ring);
+  outline-style: solid;
+  outline-color: var(--af-border-contrast);
+}
+
+[data-theme="high-contrast"] .btn-neutral {
+  background-color: var(--af-c-hc-background);
+  color: var(--af-c-hc-foreground);
+  border-color: var(--af-c-hc-border);
+  border-width: var(--af-border-width);
+}
+
+[data-theme="high-contrast"] .btn-danger {
+  font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Text inputs
+   --------------------------------------------------------------------------- */
+.text-input-outer {
+  display: flex;
+  align-items: center;
+  border-radius: var(--af-radius-md);
+  padding-left: 0.75rem;
+  background-color: var(--af-input-bg);
+  outline-width: var(--af-border-width);
+  outline-style: solid;
+  outline-color: var(--af-border);
+}
+
+.text-input-outer:has(input:focus-within),
+.text-input-outer:has(select:focus-within) {
+  outline-width: var(--af-ring);
+  outline-color: var(--af-border-focus);
+}
+
+.text-input-inner {
+  width: 4.5rem;
+  padding-block: 0.375rem;
+  padding-right: 0.75rem;
+  padding-left: 0.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--af-text);
+}
+
+.text-input-inner:focus {
+  outline: none;
+}
+
+.text-input-label {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--af-text-label);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Error states
+   --------------------------------------------------------------------------- */
+.error-border {
+  outline-color: var(--af-error-border);
+  border-color: var(--af-error-border) !important;
+}
+
+.error-input {
+  border-color: var(--af-error-border) !important;
+  background-color: var(--af-error-bg) !important;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--af-error-text);
+  background-color: var(--af-error-bg);
+  border: 1px solid var(--af-error-border);
+  border-radius: var(--af-radius-md);
+}
+
+.error-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Keyboard keys, info boxes, page indicators
+   --------------------------------------------------------------------------- */
+.kbd {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  background-color: var(--af-surface);
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius-sm);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  color: var(--af-text-title);
+  font-weight: 500;
+}
+
+.info-box {
+  padding: 1rem;
+  border-radius: var(--af-radius-md);
+  background-color: color-mix(in srgb, var(--af-primary), transparent 90%);
+  border: 1px solid color-mix(in srgb, var(--af-primary), transparent 80%);
+}
+
+.shortcut-reference-box {
+  padding: 1rem;
+  border-radius: var(--af-radius-md);
+  background-color: var(--af-surface);
+  border: 1px solid var(--af-border);
+}
+
+.no-underline {
+  text-decoration: none;
+}
+
+.page-indicator {
+  transition: background-color 0.2s ease-in-out;
+}
+
+.page-indicator-active {
+  background-color: var(--af-primary);
+}
+
+.page-indicator-inactive {
+  background-color: var(--af-border);
+}
+
+/* Dark: the info box needs more transparency to stand out from the
+   background, and the shortcut box a subtle gradient. */
+[data-theme="dark"] .info-box {
+  background-color: color-mix(in srgb, var(--af-primary), transparent 92%);
+  border-color: color-mix(in srgb, var(--af-primary), transparent 85%);
+}
+
+[data-theme="dark"] .shortcut-reference-box {
+  background: linear-gradient(
+    135deg,
+    var(--af-surface),
+    color-mix(in srgb, var(--af-surface), var(--af-primary) 3%)
+  );
+}
+
+[data-theme="high-contrast"] .kbd,
+[data-theme="high-contrast"] .info-box,
+[data-theme="high-contrast"] .shortcut-reference-box {
+  background-color: var(--af-c-hc-background);
+  border-width: var(--af-border-width);
+}
+
+[data-theme="high-contrast"] .kbd {
+  border-color: var(--af-c-hc-border);
+  color: var(--af-c-hc-foreground);
+}
+
+[data-theme="high-contrast"] .info-box {
+  border-color: var(--af-c-hc-accent);
+}
+
+[data-theme="high-contrast"] .shortcut-reference-box {
+  border-style: solid;
+  border-color: var(--af-c-hc-border);
+}
+
+[data-theme="high-contrast"] .page-indicator-active {
+  background-color: var(--af-c-hc-accent);
+}
+
+[data-theme="high-contrast"] .page-indicator-inactive {
+  background-color: var(--af-c-hc-border);
+}
+
+
+/* ---------------------------------------------------------------------------
+   Dialogs
+   Lists inside dialogs use the same base size as the surrounding dialog
+   text.
+   --------------------------------------------------------------------------- */
+[role="dialog"] ul,
+[role="dialog"] ol,
+[role="dialog"] li {
+  font-size: 1rem;
+}
