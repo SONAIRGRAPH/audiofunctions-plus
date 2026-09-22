@@ -1,0 +1,117 @@
+/* ============================================================================
+   GRAPH
+   ----------------------------------------------------------------------------
+   Styling for the SVG elements JSXGraph produces. Elements are matched through
+   the cssClass option passed to board.create(...) in GraphView.jsx.
+
+   No fixed stroke widths here -- they all come from theme.css and can be
+   scaled globally through data-line-width on <html>, independently of the
+   active theme.
+
+   Unlayered so the rules take precedence over Tailwind's utilities. CSS also
+   beats the presentation attributes JSXGraph sets itself, which is why .curve
+   deliberately sets no stroke color: a per-function color (func.color) has to
+   survive. The theme color arrives through the additional class .curve-1 ...
+   .curve-6, which is only assigned when no explicit color is set.
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------------------
+   Axes, ticks, grid
+   --------------------------------------------------------------------------- */
+.axis {
+  stroke: var(--af-graph-axis);
+  stroke-width: var(--af-stroke-axis);
+  stroke-opacity: 0.3;
+}
+
+path[id*="_ticks_"] {
+  stroke: var(--af-graph-tick);
+  stroke-width: var(--af-stroke-tick);
+  stroke-opacity: 0.7;
+}
+
+/* Axis arrow heads */
+[id^="jxgbox_"][id$="TriangleEnd1"] {
+  fill: var(--af-graph-axis);
+  stroke: var(--af-graph-axis);
+}
+
+text.JXGtext {
+  fill: var(--af-graph-text);
+  dominant-baseline: middle;
+  text-anchor: end;
+}
+
+.grid {
+  stroke: var(--af-graph-grid);
+  stroke-width: var(--af-stroke-grid);
+  stroke-opacity: 0.3;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Curves
+   --------------------------------------------------------------------------- */
+.curve {
+  stroke-width: var(--af-stroke-curve);
+  stroke-linecap: round;
+}
+
+.curve-1 { stroke: var(--af-curve-1); }
+.curve-2 { stroke: var(--af-curve-2); }
+.curve-3 { stroke: var(--af-curve-3); }
+.curve-4 { stroke: var(--af-curve-4); }
+.curve-5 { stroke: var(--af-curve-5); }
+.curve-6 { stroke: var(--af-curve-6); }
+
+
+/* ---------------------------------------------------------------------------
+   Points
+   --------------------------------------------------------------------------- */
+.endpoint-open {
+  fill: var(--af-endpoint-open-fill);
+  stroke: var(--af-endpoint-open-stroke);
+  stroke-width: var(--af-stroke-point);
+}
+
+.endpoint-closed {
+  fill: var(--af-endpoint-closed-fill);
+  stroke: var(--af-endpoint-closed-stroke);
+  stroke-width: var(--af-stroke-point);
+}
+
+.isolated-point {
+  fill: var(--af-point-fill);
+  stroke: var(--af-point-stroke);
+  stroke-width: var(--af-stroke-point);
+}
+
+
+/* ---------------------------------------------------------------------------
+   Cursor
+
+   The cursor color is an indicator and therefore uniform across a theme. Only
+   an explicit per-function color takes precedence, in which case
+   .cursor-themed is omitted.
+   --------------------------------------------------------------------------- */
+.functionCursor {
+  stroke-width: var(--af-stroke-point);
+}
+
+.cursor-themed {
+  fill: var(--af-cursor-fill);
+  stroke: var(--af-cursor-stroke);
+}
+
+
+/* ---------------------------------------------------------------------------
+   Landmark symbols
+   --------------------------------------------------------------------------- */
+.landmark-diamond,
+.landmark-triangle,
+.landmark-square {
+  fill: var(--af-landmark-fill);
+  stroke: var(--af-landmark-stroke);
+  stroke-width: var(--af-stroke-landmark);
+}

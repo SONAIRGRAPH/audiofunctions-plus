@@ -1,0 +1,171 @@
+/* ============================================================================
+   COMMAND PALETTE -- app-side skin
+   ----------------------------------------------------------------------------
+   src/components/ui/command-palette is a self-contained component and stays
+   untouched, so it can be updated from upstream without merging. Everything
+   this app wants differently lives here. Colors come from the --cp-* mapping in
+   theme.css section 6; this file only adjusts geometry, size and the parts of
+   the selection that a token cannot express.
+
+   Every selector starts with html[...] -- data-theme where a rule applies
+   always, the axis attribute where it belongs to one preference. Not
+   decoration: the component's stylesheet is imported from its JSX and therefore
+   lands *after* index.css in the bundle, so an override at equal specificity
+   would lose. data-theme is set pre-paint by the inline script in index.html,
+   the axes by applyStoredPreferences() on startup -- both long before the
+   palette can open, so the prefix always matches.
+
+   Sizes are rem, deliberately. The component works in px and therefore ignores
+   the text-size preference (html { font-size } in theme.css section 3); in rem
+   the palette scales with it like the rest of the app.
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------------------
+   Panel and chrome -- a little roomier throughout
+   --------------------------------------------------------------------------- */
+html[data-theme] .cp-panel {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: 70vh;
+}
+
+html[data-theme] .cp-breadcrumb {
+  padding: 0.75rem 1.25rem 0;
+  font-size: 0.9375rem;
+}
+
+html[data-theme] .cp-input {
+  padding: 1.125rem 1.25rem;
+  font-size: 1.25rem;
+}
+
+html[data-theme] .cp-footer {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+}
+
+html[data-theme] .cp-empty {
+  padding: 1.5rem 1.25rem;
+  font-size: 1.0625rem;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Rows -- the selection covers the full row
+
+   The component insets its rows and rounds them into pills. Dropping the list's
+   horizontal padding and the radius lets the highlight run from edge to edge;
+   the row's own padding keeps the content aligned with the input above.
+   --------------------------------------------------------------------------- */
+html[data-theme] .cp-list {
+  padding: 0 0;
+}
+
+html[data-theme] .cp-option {
+  gap: 0.875rem;
+  padding: 0.825rem 1.25rem;
+  border-radius: 0;
+}
+
+html[data-theme] .cp-option__icon {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+html[data-theme] .cp-option__text {
+  font-size: 1.0625rem;
+}
+
+html[data-theme] .cp-trail {
+  font-size: 0.875rem;
+}
+
+html[data-theme] .cp-option__hint {
+  font-size: 0.9375rem;
+}
+
+/* The matched letters carry the search result, so they get real bold rather than
+   the component's semibold. 700 is the ceiling: the app runs on system-ui with
+   font-synthesis: none (base.css), so anything heavier falls back to the nearest
+   weight the installed font actually has instead of being faked. */
+html[data-theme] .cp-match {
+  font-weight: 700;
+}
+
+html[data-theme] .cp-kbd {
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+
+/* ---------------------------------------------------------------------------
+   The active row -- an independent preference axis like theme or text size
+   (data-highlight-style on <html>, defined in src/utils/prefs.js)
+
+   Two ways to mark it, and they differ in more than the marker itself:
+
+     fill      the row is painted in the accent. Everything on it has to switch
+               to the color that is readable on that fill.
+     outline   the row keeps the panel background and gets a ring. Nothing on it
+               changes color -- the ring alone carries the selection, which is
+               the calmer variant and the one that survives when a strong fill
+               would compete with the content.
+
+   So the color rules below exist only for the fill and are scoped to it,
+   instead of being undone again for the outline.
+   --------------------------------------------------------------------------- */
+
+/* Fill: the background comes from the component (--cp-accent-bg), only the
+   ring it draws by default goes. */
+html[data-highlight-style="fill"] .cp-option--active {
+  box-shadow: none;
+  color: var(--cp-accent-fg);
+}
+
+/* Label, match and key chip are the only children with a color of their own --
+   icon, trail, hint and chevron already follow through currentColor. The match
+   stays set apart by its weight. */
+html[data-highlight-style="fill"] .cp-option--active :is(.cp-option__label, .cp-match, .cp-kbd) {
+  color: inherit;
+}
+
+/* The chip sits on the fill and cannot keep a surface of its own. A border in
+   the row's color delineates it without knowing what the fill is. */
+html[data-highlight-style="fill"] .cp-option--active .cp-kbd {
+  border-color: currentColor;
+  background: transparent;
+}
+
+/* Outline: an inset ring in the focus color, so it reads as what it is. Its
+   width is --af-ring and therefore follows the line width preference -- and the
+   heavier ring of the high-contrast theme -- like every other focus indicator in
+   the app. */
+html[data-highlight-style="outline"] .cp-option--active {
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--af-ring) var(--cp-accent-border);
+}
+
+/* ---------------------------------------------------------------------------
+   Shortcut position -- an independent preference axis like theme or text size
+   (data-shortcut-position on <html>, defined in src/utils/prefs.js)
+
+   The component renders the key hint as a sibling of the text box, and that box
+   carries flex: 1 -- that single value is the whole reason the hint ends up at
+   the far right. Letting the box take only the width it needs puts the hint
+   directly behind the text instead.
+
+   The chevron keeps its place at the end either way: as a submenu marker it is
+   easier to read as an aligned column than scattered across the rows.
+
+   No theme appears in these selectors on purpose. The high-contrast theme does
+   default to this layout, but it gets there as a preset on its THEMES entry,
+   which sets the attribute -- so the user can still overrule it. Matching on
+   [data-theme] here would take that choice away again.
+   --------------------------------------------------------------------------- */
+html[data-shortcut-position="inline"] .cp-option__text {
+  flex: 0 1 auto;
+}
+
+html[data-shortcut-position="inline"] .cp-chevron {
+  margin-left: auto;
+}

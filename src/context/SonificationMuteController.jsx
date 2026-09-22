@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useKBar, VisualState } from "kbar";
+import { useCommandPaletteOpen } from "../components/ui/command-palette";
 import { useDialog } from "./DialogContext";
 import { useGraphContext } from "./GraphContext";
 import { AUDIO_MODALITIES, useMixer } from "./MixerContext";
@@ -81,11 +81,11 @@ const isCursorNavigationKey = (event) => {
  *   - AUTO idle mute after AUDIO_IDLE_MUTE_MS (fade from AUDIO_IDLE_FADE_START_MS)
  *   - AUTO first-load enable when the user first moves the cursor (arrows, J/L, B, Space)
  *
- * Must render under MixerProvider, GraphContextProvider, DialogProvider, and KBarProvider.
+ * Must render under MixerProvider, GraphContextProvider, DialogProvider, and CommandPaletteProvider.
  * Does not render UI.
  */
 const SonificationMuteController = () => {
-  const { visualState } = useKBar((state) => ({ visualState: state.visualState }));
+  const isCommandPaletteOpen = useCommandPaletteOpen();
   const { isDialogOpen } = useDialog();
   const { PlayFunction } = useGraphContext();
   const {
@@ -95,8 +95,6 @@ const SonificationMuteController = () => {
     setOverlayMuted,
     setIdleHold,
   } = useMixer();
-
-  const isCommandPaletteOpen = visualState !== VisualState.hidden;
 
   useEffect(() => {
     setOverlayMuted(isCommandPaletteOpen || isDialogOpen);

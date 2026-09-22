@@ -16,6 +16,8 @@ import {
   setFunctionInstrumentN
 } from "../../../utils/graphObjectOperations";
 
+import {isAssignment} from "../../../utils/parse.js";
+
 //import {separatingCommas } from "../../../utils/parse.js";
 
 const EditFunctionDialog = ({ isOpen, onClose }) => {
@@ -158,6 +160,29 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
         announceStatus(`Edit functions dialog opened. ${getFunctionCount(functionDefinitions)} functions available.`);
       }
     }
+
+    // "sanitize" function definitions to ensure they are in assignment form
+    const definitionsWithAssignments = functionDefinitions.map((currentFunc,index) => {
+      console.log("Checking function definition for assignment: ", currentFunc.functionDef);
+      // if (!isAssignment(currentFunc.functionDef)) {
+      //   currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      // }
+      if (typeof currentFunc.functionDef === 'string' && !isAssignment(currentFunc.functionDef)) {
+        currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      }
+      if (Array.isArray(currentFunc.functionDef)) {
+        currentFunc.functionDef = currentFunc.functionDef.map(([func, condition]) => {
+          if (!isAssignment(func)) {
+            func = "f(x) = " + func;
+          }
+          return [func, condition];
+        });
+      }
+      return currentFunc;
+    });
+
+    setFunctionDefinitions(definitionsWithAssignments);
+
   }, [isOpen, isReadOnly]);
 
   const handleCancel = () => {
@@ -221,6 +246,28 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
       // Update function definitions with cleared landmarks where necessary
       setFunctionDefinitions(updatedDefinitions);
     }
+
+
+    const definitionsWithAssignments = functionDefinitions.map((currentFunc,index) => {
+      console.log("Checking function definition for assignment: ", currentFunc.functionDef);
+      // if (!isAssignment(currentFunc.functionDef)) {
+      //   currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      // }
+      if (typeof currentFunc.functionDef === 'string' && !isAssignment(currentFunc.functionDef)) {
+        currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
+      }
+      if (Array.isArray(currentFunc.functionDef)) {
+        currentFunc.functionDef = currentFunc.functionDef.map(([func, condition]) => {
+          if (!isAssignment(func)) {
+            func = "f(x) = " + func;
+          }
+          return [func, condition];
+        });
+      }
+      return currentFunc;
+    });
+
+    setFunctionDefinitions(definitionsWithAssignments);
 
     onClose();
     setTimeout(() => focusChart(), 100);
@@ -455,7 +502,6 @@ const FunctionContainer = ({ index, value, instrument, onChange, onDelete, onAcc
               className={`text-input-outer ${hasError ? 'error-border error-input' : ''}`}
               aria-errormessage={hasError ? `function-${index}-error` : undefined}
             >
-              <div className="text-input-label " aria-hidden="true">f(x)=</div>
               <input
                 id={`function-${index}`}
                 type="text"
@@ -667,9 +713,6 @@ const PiecewiseFunctionContainer = ({ index, value, instrument, onChange, onDele
             className={`text-input-outer flex-1 min-w-0 ${functionHasError ? 'error-border error-input' : ''}`}
             aria-errormessage={functionHasError ? `piecewise-${index}-part-${partIndex}-function-error` : undefined}
           >
-            <div className="text-input-label" aria-hidden="true">
-              f(x)=
-            </div>
             <input
               id={`piecewise-function-${index}-part-${partIndex}-function`}
               type="text"

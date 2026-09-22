@@ -17,7 +17,6 @@
     "@headlessui/react": "^2.2.2",
     "@tailwindcss/vite": "^4.1.4",
     "jsxgraph": "^1.11.1",
-    "kbar": "^0.1.0-beta.45",
     "lucide-react": "^0.488.0",
     "mathjs": "^11.8.0",
     "react": "^18.3.1",

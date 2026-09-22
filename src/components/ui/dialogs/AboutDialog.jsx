@@ -73,8 +73,8 @@ const AboutDialog = ({ isOpen, onClose }) => {
             <div
               className="border rounded-lg p-4"
               style={{
-                backgroundColor: 'color-mix(in srgb, var(--color-primary), transparent 95%)',
-                borderColor: 'color-mix(in srgb, var(--color-primary), transparent 85%)'
+                backgroundColor: 'color-mix(in srgb, var(--af-primary), transparent 95%)',
+                borderColor: 'color-mix(in srgb, var(--af-primary), transparent 85%)'
               }}
             >
               <div className="flex items-start gap-3">
@@ -92,12 +92,12 @@ const AboutDialog = ({ isOpen, onClose }) => {
                   />
                   <Globe
                     className="w-12 h-12 hidden"
-                    style={{ color: 'var(--color-primary)' }}
+                    style={{ color: 'var(--af-primary)' }}
                     aria-hidden="true"
                   />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-md font-semibold text-titles mb-2">
+                  <h2 className="text-base font-semibold text-titles mb-2">
                     SONAIRGRAPH
                   </h2>
                   <p className="text-sm text-descriptions mb-3">
@@ -174,7 +174,7 @@ const AboutDialog = ({ isOpen, onClose }) => {
             <div className="border-t border-border pt-4">
               <div
                 onClick={() => setShowLicenseDetails(!showLicenseDetails)}
-                className="flex items-center space-x-2 text-md font-semibold text-titles cursor-pointer select-none"
+                className="flex items-center space-x-2 text-base font-semibold text-titles cursor-pointer select-none"
                 aria-expanded={showLicenseDetails}
                 aria-controls="license-details"
                 role="button"
@@ -276,7 +276,7 @@ const AboutDialog = ({ isOpen, onClose }) => {
             <div>
               <div
                 onClick={() => setShowLibraryDetails(!showLibraryDetails)}
-                className="flex items-center space-x-2 text-md font-semibold text-titles cursor-pointer select-none"
+                className="flex items-center space-x-2 text-base font-semibold text-titles cursor-pointer select-none"
                 aria-expanded={showLibraryDetails}
                 aria-controls="library-details"
                 role="button"
@@ -355,17 +355,6 @@ const AboutDialog = ({ isOpen, onClose }) => {
                             className="text-xs text-primary hover:opacity-80 underline transition-opacity"
                           >
                             mathjs.org
-                          </button>
-                        </div>
-
-                        <div className="bg-elem-background border border-border rounded p-3">
-                          <strong className="text-titles">kbar</strong><br />
-                          <span className="text-xs text-descriptions">Command Palette</span><br />
-                          <button
-                            onClick={() => handleExternalLink('https://kbar.vercel.app', 'kbar website')}
-                            className="text-xs text-primary hover:opacity-80 underline transition-opacity"
-                          >
-                            kbar.vercel.app
                           </button>
                         </div>
 

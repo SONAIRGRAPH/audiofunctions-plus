@@ -10,6 +10,7 @@ import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useInstruments } from "../../context/InstrumentsContext";
 import { InstrumentFrequencyType } from "../../config/instruments";
 import { cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
+import { getLineWidthScale } from "../../utils/prefs";
 
 const config = { }
 const math = create(all, config)
@@ -21,7 +22,8 @@ const X_AXIS_DIVISIONS = 10;
 // where expr_i is an expression in the variable x that defines a function in the interval defined by ineq_i
 // for instance [[x+5,x < -4],[x^2,-4<=x < 1],[x-2,1<=x < 3],[5,x==3],[x-2,3 < x < 5],[3,5<= x]]
 // it should be previously checked that it is a valid piecewise function or a math expression
-function createEndPoints(func,board){
+// pointSize is already scaled by the line width preference, see useLineWidthScale
+function createEndPoints(func,board,pointSize){
     // we are allowing the use of the power operator **, so we replace it by ^ to be able to parse it
     // we are also transforming the math constants to be able to parse them
     // WARNING nthroot is not implemented in mathjs, we need nthRoot, so when using mathjs, we need to change nthroot to nthRoot
@@ -51,34 +53,42 @@ function createEndPoints(func,board){
         return [[],[]];
     }
     const l = parsed.items; //list of items, each item is a pair [expr,ineq]
-    let ineq,v,a,b,p,i;
+    let ineq,v,a,b,p,i,fn;
     const endpoints = []; // the endpoints of the intervals
     for (i=0;i< l.length;i++){
         ineq = transformAssingnments(l[i].items[1]); // the inequality or equality of ith item, we change assignments to equalities
+        fn = l[i].items[0]; // the expression of the function in the ith item 
+        if (fn.type == "AssignmentNode"){ // if it is an assignment, we get the expression of the assignment
+          fn=fn.value;
+        }
+        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment  
+          fn=fn.expr;
+        }
+        console.log("Processing item ", i, " with function: ", fn, " and condition: ", ineq.toString());
         if ("op" in ineq){ //that is a single inequality or an equality
             if (ineq.op == "<=" || ineq.op ==">=" || ineq.op =="=="){ //one of the arguments is the variable "x"
                 if (("name" in ineq.args[1]) && (ineq.args[1].name == "x")){ // we have a op x, with op in {<=, >=, ==}
                     v=ineq.args[0].evaluate(); // v is the value of a in a op x
-                    p=board.create("point", [v,l[i].items[0].evaluate({x:v})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fn.evaluate({x:v})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: pointSize});
                     endpoints.push(p);
                     if (ineq.op == "=="){ // if we have an equality, we add the x coordinate to the list of x-coordinates of isolated points
                         // console.log("Adding isolated point at x=", v);
                         func.pointOfInterests.push({
                             x: v,
-                            y: l[i].items[0].evaluate({x:v}),
+                            y: fn.evaluate({x:v}),
                             type: "isolated"
                         });
                         // console.log("Function ", func);
                       }
                 }else{ // we have x op a, with op in {<=, >=, ==}
                     v=ineq.args[1].evaluate(); // v is the value of a in x op a
-                    p=board.create("point", [v,l[i].items[0].evaluate({x:v})], {cssClass: 'isolated-point', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fn.evaluate({x:v})], {cssClass: 'isolated-point', fixed:true, highlight:false, withLabel:false, size: pointSize});
                     endpoints.push(p);
                     if (ineq.op == "=="){ // if we have an equality, we add the x coordinate to the list of x-coordinates of isolated points
                         // console.log("Adding isolated point at x=", v);
                         func.pointOfInterests.push({
                             x: v,
-                            y: l[i].items[0].evaluate({x:v}),
+                            y: fn.evaluate({x:v}),
                             type: "isolated"
                         });
                         // console.log("Function ", func);
@@ -88,10 +98,10 @@ function createEndPoints(func,board){
             if (ineq.op == "<" || ineq.op ==">" || ineq.op=="!="){ // this we fill in white, since it is an strict inequality
                 if (("name" in ineq.args[1]) && (ineq.args[1].name == "x")){ // we have a op x, with op in {<,>}
                     v=ineq.args[0].evaluate(); // v is the value of a in a op x
-                    let fv = l[i].items[0].evaluate({x:v});
+                    let fv = fn.evaluate({x:v});
                     if (ineq.op == "!="){
                       if (isNaN(fv)){// the point is not defined here, we try the mean of the values at the left and right of v
-                        fv=(l[i].items[0].evaluate({x:v-0.0000001})+l[i].items[0].evaluate({x:v+0.0000001})/2);
+                        fv=(fn.evaluate({x:v-0.0000001})+fn.evaluate({x:v+0.0000001})/2);
                       }
                       // console.log("Possible value at x=", v, fv);
                       func.pointOfInterests.push({
@@ -100,14 +110,14 @@ function createEndPoints(func,board){
                         type: "unequal"
                       });
                     }
-                    p=board.create("point", [v,fv], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fv], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: pointSize});
                     endpoints.push(p);
                 }else{ // we have x op a, with op in {<, >}
                     v=ineq.args[1].evaluate(); // v is the value of a in x op a
-                    let fv = l[i].items[0].evaluate({x:v});
+                    let fv = fn.evaluate({x:v});
                     if (ineq.op == "!="){
                       if (isNaN(fv)){// the point is not defined here, we try the mean of the values at the left and right of v
-                        fv=(l[i].items[0].evaluate({x:v-0.0000001})+l[i].items[0].evaluate({x:v+0.0000001})/2);
+                        fv=(fn.evaluate({x:v-0.0000001})+fn.evaluate({x:v+0.0000001})/2);
                       }
                       // console.log("Possible value at x=", v, fv);
                       func.pointOfInterests.push({
@@ -116,7 +126,7 @@ function createEndPoints(func,board){
                         type: "unequal"
                       });
                     }
-                    p=board.create("point", [v,fv], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                    p=board.create("point", [v,fv], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: pointSize});
                     endpoints.push(p);
                 }
             }
@@ -126,22 +136,43 @@ function createEndPoints(func,board){
             b=ineq.params[2].evaluate(); // the value of b in a op x op b
             // we should check here that conditionals are in the form smaller, smallerEq
             if (ineq.conditionals[0]=="smaller"){ // this is a smaller so we fill in white, since it is an strict inequality
-                p=board.create("point", [a,l[i].items[0].evaluate({x:a})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [a,fn.evaluate({x:a})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: pointSize});
                 endpoints.push(p);
             }else{  // this is a smallerEq so we fill in blue
-                p=board.create("point", [a,l[i].items[0].evaluate({x:a})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [a,fn.evaluate({x:a})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: pointSize});
                 endpoints.push(p);
             }
             if (ineq.conditionals[1]=="smaller"){ // this is a smaller so we fill in white, since it is an strict inequality
-                p=board.create("point", [b,l[i].items[0].evaluate({x:b})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [b,fn.evaluate({x:b})], {cssClass: 'endpoint-open', fixed:true, highlight:false, withLabel:false, size: pointSize});
                 endpoints.push(p);
             }else{ // this is a smallerEq so we fill in blue
-                p=board.create("point", [b,l[i].items[0].evaluate({x:b})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: 4});
+                p=board.create("point", [b,fn.evaluate({x:b})], {cssClass: 'endpoint-closed', fixed:true, highlight:false, withLabel:false, size: pointSize});
                 endpoints.push(p);
             }
         }
     }
     return endpoints; // we return the endpoints and the x-coordinates of isolated points, removing duplicates
+}
+
+// The line width factor (--af-stroke-scale) as React state. JSXGraph takes point
+// sizes and tick lengths as plain numbers that CSS cannot reach, so they are
+// multiplied by it. Reading it once is not enough: a theme switch is pure CSS
+// and would not rebuild the board, leaving thick lines next to small points.
+// Only the two attributes that can move the factor are watched -- Headless UI
+// touches <html> whenever a dialog opens. An unchanged number skips the rebuild.
+function useLineWidthScale() {
+  const [scale, setScale] = useState(getLineWidthScale);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setScale(getLineWidthScale()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "data-line-width"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return scale;
 }
 
 const GraphView = () => {
@@ -167,6 +198,10 @@ const GraphView = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index globally
   const mouseTimeoutRef = useRef(null); // Track mouse movement timeout
   const handlersRef = useRef({}); // Store event handlers for cleanup
+  // Multiplies every size JSXGraph takes as a plain number: points, landmarks,
+  // the cursor and the tick lengths. Part of the board effect's dependencies, so
+  // a change rebuilds the board with the new sizes.
+  const lineWidthScale = useLineWidthScale();
 
   // Helper: map a Y value to a discrete pitch-class index for a given instrument
   const getDiscretePitchClassIndex = (y, instrumentConfig) => {
@@ -212,23 +247,29 @@ const GraphView = () => {
         const { x, y, shape, label } = landmark;
         const landmarkShape = shape || 'diamond';
 
+        // Outside the try on purpose: the catch below falls back to these same
+        // options, and a const declared inside the try does not exist there.
+        const baseOptions = {
+          fixed: true,
+          highlight: false,
+          withLabel: false,
+          showInfobox: false,
+          name: `landmark_${func.id}_${landmarkIndex}`,
+          cssClass: `landmark-${landmarkShape}`,
+          // JSXGraph's own default, spelled out so the cross and the fallback
+          // scale along with the shapes that set their size below.
+          size: 3 * lineWidthScale,
+        };
+
         try {
           let landmarkObject;
-          const baseOptions = {
-            fixed: true,
-            highlight: false,
-            withLabel: false,
-            showInfobox: false,
-            name: `landmark_${func.id}_${landmarkIndex}`,
-            cssClass: `landmark-${landmarkShape}`,
-          };
 
           switch (landmarkShape) {
             case 'diamond':
               landmarkObject = board.create('point', [x, y], {
                 ...baseOptions,
                 face: '<>',
-                size: 8,
+                size: 8 * lineWidthScale,
               });
               break;
 
@@ -236,7 +277,7 @@ const GraphView = () => {
               landmarkObject = board.create('point', [x, y], {
                 ...baseOptions,
                 face: '^',
-                size: 9,
+                size: 9 * lineWidthScale,
               });
               break;
 
@@ -245,7 +286,7 @@ const GraphView = () => {
               landmarkObject = board.create('point', [x, y], {
                 ...baseOptions,
                 face: '[]',
-                size: 6,
+                size: 6 * lineWidthScale,
               });
               break;
 
@@ -286,8 +327,8 @@ const GraphView = () => {
       grid: {
         cssClass: "grid",
         majorStep: stepSize
-        // gridX: stepSize, // Grid-Abstand für X-Achse
-        // gridY: stepSize, // Grid-Abstand für Y-Achse
+        // gridX: stepSize, // grid spacing for the x axis
+        // gridY: stepSize, // grid spacing for the y axis
       },
       axis: {
         cssClass: "axis",
@@ -295,8 +336,10 @@ const GraphView = () => {
         highlight: false,
         ticks: {
           insertTicks: true,
-          majorHeight: 5,
-          minorHeight: 3,
+          // Lengths in px. Their stroke already scales through CSS, so the
+          // length has to follow too -- otherwise thick ticks turn into stubs.
+          majorHeight: 5 * lineWidthScale,
+          minorHeight: 3 * lineWidthScale,
           ticksDistance: stepSize, // Tick-Abstand anpassen
         },
       },
@@ -350,7 +393,7 @@ const GraphView = () => {
     parsedExpressionsRef.current.clear();
 
     // Create graph objects and cursors for each active function
-    activeFunctions.forEach(func => {
+    activeFunctions.forEach((func, funcIndex) => {
       let graphFormula;
       let expr;
       let hasError = false;
@@ -468,18 +511,22 @@ const GraphView = () => {
       // Store the parsed expression
       parsedExpressionsRef.current.set(func.id, expr);
 
-      // Create graph object with function's color
+      // Curve color: an explicit func.color takes precedence and is passed as
+      // an attribute. Without one the curve only gets a class from the theme
+      // palette (--af-curve-1 ... --af-curve-6), so it recolors on a theme
+      // switch without rebuilding the board.
+      const curvePaletteClass = `curve-${(funcIndex % 6) + 1}`;
       const graphObject = board.create("functiongraph", [graphFormula], {
-        cssClass: "curve",
+        cssClass: func.color ? "curve" : `curve ${curvePaletteClass}`,
         fixed: true,
         highlight: false,
-        strokeColor: func.color || "#0000FF", // Use function's color or default to blue
+        ...(func.color ? { strokeColor: func.color } : {}),
       });
 
       // Create endpoints for piecewise functions
       if (expr !== "0") {
         try {
-          const funcEndpoints = createEndPoints(func, board);
+          const funcEndpoints = createEndPoints(func, board, 4 * lineWidthScale);
           endpoints = [...endpoints, ...funcEndpoints];
         } catch (endpointErr) {
           console.error(`Error creating endpoints for ${func.functionName}:`, endpointErr);
@@ -516,15 +563,16 @@ const GraphView = () => {
       }
 
       // Create cursor for this function at last known position (or [0,0])
+      // Without a per-function color the cursor draws in the theme's indicator
+      // color through .cursor-themed.
       const cursor = board.create("point", [initialX, initialY], {
-        cssClass: "functionCursor",
+        cssClass: func.color ? "functionCursor" : "functionCursor cursor-themed",
         name: "",
-        size: 5,
+        size: 5 * lineWidthScale,
         fixed: true,
         highlight: false,
         showInfobox: false,
-        fillColor: func.color || "#0000FF",
-        strokeColor: func.color || "#0000FF"
+        ...(func.color ? { fillColor: func.color, strokeColor: func.color } : {}),
       });
 
       // Store references
@@ -942,7 +990,7 @@ const GraphView = () => {
       board.unsuspendUpdate();
       JXG.JSXGraph.freeBoard(board);
     };
-  }, [functionDefinitions, graphBounds, PlayFunction.active, PlayFunction.source, stepSize]);
+  }, [functionDefinitions, graphBounds, PlayFunction.active, PlayFunction.source, stepSize, lineWidthScale]);
 
   // Update playActiveRef when PlayFunction.active changes
   useEffect(() => {
@@ -1076,8 +1124,8 @@ const GraphView = () => {
         transition: 'border-color 0.2s ease'
       }}
       onFocus={(e) => {
-        e.target.style.borderColor = 'var(--color-primary)';
-        e.target.style.boxShadow = '0 0 0 2px var(--color-primary)';
+        e.target.style.borderColor = 'var(--af-primary)';
+        e.target.style.boxShadow = '0 0 0 2px var(--af-primary)';
       }}
       onPointerDown={() => {
         ensureToneStarted();

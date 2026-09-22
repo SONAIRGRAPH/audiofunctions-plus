@@ -26,7 +26,7 @@ export const AUDIO_IDLE_FADE_DURATION_MS = AUDIO_IDLE_MUTE_MS - AUDIO_IDLE_FADE_
  * UI should use `useMixer()` only. Do not import mixerBus or Tone.js from UI code.
  * Full guide with examples: ./mixer-ui.md
  *
- * Mount <SonificationMuteController /> inside KBarProvider (already done in App.jsx).
+ * Mount <SonificationMuteController /> inside CommandPaletteProvider (already done in App.jsx).
  * That component is the single place that opens/closes master output.
  */
 

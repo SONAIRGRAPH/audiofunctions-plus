@@ -1,6 +1,3 @@
-import './App.css';
-import { KBarProvider, useKBar } from 'kbar';
-import CommandBar from './components/ui/CommandPalette';
 import GraphView from './components/graph/GraphView';
 import React, { useEffect, useRef } from "react";
 import { GraphContextProvider } from "./context/GraphContext";
@@ -12,10 +9,11 @@ import { InstrumentsProvider } from './context/InstrumentsContext';
 import { MixerProvider, useMixer } from './context/MixerContext';
 import SonificationMuteController from './context/SonificationMuteController';
 import KeyboardHandler from "./components/ui/KeyboardHandler";
-import { PaletteActions } from './components/ui/PaletteActions_dyn';
+import { usePaletteItems } from './components/ui/usePaletteItems';
 import { AnnouncementProvider } from './context/AnnouncementContext';
 import { InfoToastProvider } from './context/InfoToastContext';
 import { ensureToneStarted } from './utils/toneAudio';
+import { CommandPaletteProvider } from './components/ui/command-palette';
 
 function App() {
   return (
@@ -62,10 +60,10 @@ const AppContent = () => {
     }
   }, [openDialog]);
 
-  return <KBarWrapper />;
+  return <AppShell />;
 };
 
-const KBarWrapper = () => {
+const AppShell = () => {
   // needed to wrap actions into GraphContextProvider
   const { setIsAudioEnabled } = useMixer();
   const { focusChart } = useGraphContext();
@@ -85,18 +83,20 @@ const KBarWrapper = () => {
     }, 0);
   };
 
+  const items = usePaletteItems();
+
   return (
-    <KBarProvider>
+    <CommandPaletteProvider items={items}>
       {/* Skip link for accessibility */}
-      <a
+      {/* <a
         href="#chart"
         className="skip-link"
         style={{
           position: 'absolute',
           top: '-40px',
           left: '6px',
-          background: 'var(--color-primary)',
-          color: 'var(--color-txt-title)',
+          background: 'var(--af-primary)',
+          color: 'var(--af-text-title)',
           padding: '8px 16px',
           textDecoration: 'none',
           borderRadius: '4px',
@@ -117,10 +117,10 @@ const KBarWrapper = () => {
         }}
       >
         Skip to chart. Enable audio chart keyboard interaction.
-      </a>
+      </a>*/}
 
-      <PaletteActions />
-      <CommandBar />
+
+
       <SonificationMuteController />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
         <Header />
@@ -129,7 +129,7 @@ const KBarWrapper = () => {
           <GraphSonification />
         </div>
       </div>
-    </KBarProvider>
+    </CommandPaletteProvider>
   );
 };
 
