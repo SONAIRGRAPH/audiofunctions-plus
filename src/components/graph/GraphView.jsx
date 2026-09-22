@@ -675,7 +675,7 @@ const GraphView = () => {
       // console.log("Play mode activated!");
 
       // Set exploration mode based on the source
-      if (PlayFunction.source === "play") {
+      if (PlayFunction.source === "play" || PlayFunction.source === "play_space") {
         setExplorationMode("batch");
       } else if (PlayFunction.source === "keyboard") {
         setExplorationMode("keyboard_smooth");
