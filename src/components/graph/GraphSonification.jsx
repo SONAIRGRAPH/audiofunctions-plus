@@ -49,6 +49,7 @@ const GraphSonification = () => {
   const { isEditFunctionDialogOpen } = useDialog();
   const instrumentsRef = useRef(new Map()); // Map to store instrument references
   const channelsRef = useRef(new Map()); // Map to store channel references
+  const lastScheduledTimeRef = useRef(new Map()); // functionId -> last time scheduled on that instrument's Tone timeline
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
   const [forceRecreate, setForceRecreate] = useState(false); // State to force recreation of sonification pipeline
@@ -281,6 +282,7 @@ const GraphSonification = () => {
         }
       });
       instrumentsRef.current.clear();
+      lastScheduledTimeRef.current.clear();
 
       // Clear last pitch classes
       lastPitchClassesRef.current.clear();
@@ -301,6 +303,7 @@ const GraphSonification = () => {
           instrumentsRef.current.get(functionId).dispose();
         }
         instrumentsRef.current.delete(functionId);
+        lastScheduledTimeRef.current.delete(functionId);
       }
     });
 
@@ -334,6 +337,7 @@ const GraphSonification = () => {
         }
       });
       instrumentsRef.current.clear();
+      lastScheduledTimeRef.current.clear();
     };
   }, [functionDefinitions, getInstrumentByName, forceRecreate]);
 
@@ -483,23 +487,25 @@ const GraphSonification = () => {
     }
   };
 
+  // Tone's synths reject a scheduled time that is <= the last time already scheduled
+  // on their internal timeline. Attack and release calls for the same instrument share
+  // this one clock so repeated attacks (no release in between, continuous sonification)
+  // and releases (boundary/out-of-bounds stops) never go out of order.
+  const nextScheduledTime = (functionId) => {
+    const now = Tone.now();
+    const last = lastScheduledTimeRef.current.get(functionId) ?? 0;
+    const time = Math.max(now, last + 0.001);
+    lastScheduledTimeRef.current.set(functionId, time);
+    return time;
+  };
+
   const startTone = (functionId, frequency, pan, mouseY = null, functionY = null) => {
     const instrument = instrumentsRef.current.get(functionId);
     const channel = channelsRef.current.get(functionId);
 
     if (instrument && channel) {
       try {
-        // Get the current time from Tone.js
-        const now = Tone.now();
-
-        // Add a tiny offset based on the functionId to prevent simultaneous triggers
-        // Using the last character of functionId to create a small offset
-        const offset = parseInt(functionId.slice(-1), 10) * 0.01;
-
-        // Ensure the start time is in the future to prevent "Start time must be strictly greater than previous start time" error
-        const startTime = Math.max(now + offset, now + 0.001);
-
-        instrument.triggerAttack(frequency, startTime);
+        instrument.triggerAttack(frequency, nextScheduledTime(functionId));
         channel.pan.value = pan;
 
         // Apply volume control based on mouse distance (only when mouseY is available)
@@ -514,23 +520,6 @@ const GraphSonification = () => {
         }
       } catch (error) {
         console.warn(`Error starting tone for function ${functionId}:`, error);
-        // Fallback: try to start immediately without timing
-        try {
-          instrument.triggerAttack(frequency);
-          channel.pan.value = pan;
-
-          // Apply volume control in fallback as well
-          if (mouseY !== null && mouseY !== undefined) {
-            // Use provided functionY if available (for discrete sonification), otherwise calculate from frequency
-            const actualFunctionY = functionY !== null ? functionY : (frequency - GLOBAL_FREQUENCY_RANGE.min) / (GLOBAL_FREQUENCY_RANGE.max - GLOBAL_FREQUENCY_RANGE.min) * (graphBounds.yMax - graphBounds.yMin) + graphBounds.yMin;
-            const volumeDB = calculateVolume(actualFunctionY, parseFloat(mouseY), graphBounds);
-            channel.volume.value = volumeDB;
-          } else {
-            channel.volume.value = 0;
-          }
-        } catch (fallbackError) {
-          console.error(`Fallback error starting tone for function ${functionId}:`, fallbackError);
-        }
       }
     }
   };
@@ -538,7 +527,7 @@ const GraphSonification = () => {
   const stopTone = (functionId) => {
     const instrument = instrumentsRef.current.get(functionId);
     if (instrument) {
-      instrument.triggerRelease();
+      instrument.triggerRelease(nextScheduledTime(functionId));
     }
   };
 
