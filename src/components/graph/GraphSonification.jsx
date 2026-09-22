@@ -88,7 +88,8 @@ const GraphSonification = () => {
     };
   }, []);
 
-  // Apply master gate: immediate open/close, or a linear idle fade-out (3.5s→4s).
+  // Apply master gate: immediate open/close, or a linear idle fade-out
+  // over AUDIO_IDLE_FADE_DURATION_MS at the end of the AUTO idle window.
   // cancelScheduledValues() snaps back to the last setValueAtTime (full volume),
   // which caused a brief blip after the fade; hold the current automated value.
   useEffect(() => {

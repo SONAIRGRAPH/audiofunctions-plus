@@ -56,7 +56,7 @@ setAudioModality(AUDIO_MODALITIES.MANUAL);
 | On page load | Sonification is off. Cursor can move with no sound. | Same: off until **P**. |
 | First enable | First cursor-move key (←/→, J/L, **B**, Space) arms audio as if **P** was pressed. Only once per page load. | Only **P** / header / skip link. |
 | After that | **P** (and header) toggle on/off. | Same as today. |
-| Idle | After 4s without keyboard/pointer activity, master mutes (clarinet no longer drones). Fade-out starts at 3.5s so the stop is gradual. Activity unmutes without needing **P**. Batch / held-arrow playback is not treated as idle. | Sound stays on until **P**. |
+| Idle | After `audioIdleTimeoutSec` seconds without keyboard/pointer activity (default **4**, slider **2–10**), master mutes (clarinet no longer drones). Fade-out starts 0.5s before that so the stop is gradual. Activity unmutes without needing **P**. Batch / held-arrow playback is not treated as idle. | Sound stays on until **P**. |
 | Overlays | Command palette and dialogs still mute while open. | Same. |
 
 `isAudioEnabled` is the user’s mute/unmute choice — drive the speaker icon from this. AUTO idle mute is temporary and does not change `isAudioEnabled` or the icon; chart activity resumes sound. `isOutputOpen` is whether sound actually reaches the speakers.
@@ -88,7 +88,7 @@ The three values are mutually exclusive. Default is **DEFAULT**.
 Related files:
 
 - Mute policy: [`SonificationMuteController.jsx`](./SonificationMuteController.jsx)
-- Idle window: `AUDIO_IDLE_MUTE_MS` (4s) / `AUDIO_IDLE_FADE_START_MS` (3.5s) in [`MixerContext.jsx`](./MixerContext.jsx). Bounds announcements still use the shorter `USER_IDLE_DELAY_MS` in [`../utils/boundsAnnouncement.js`](../utils/boundsAnnouncement.js).
+- Idle window: `audioIdleTimeoutSec` (default 4s, range 2–10) in [`MixerContext.jsx`](./MixerContext.jsx). The fade itself stays `AUDIO_IDLE_FADE_DURATION_MS` (500ms) at the end of that window. Bounds announcements still use the shorter `USER_IDLE_DELAY_MS` in [`../utils/boundsAnnouncement.js`](../utils/boundsAnnouncement.js).
 
 ---
 
@@ -207,6 +207,12 @@ const {
   AUDIO_MODALITIES,    // { AUTO: "auto", MANUAL: "manual" }
   audioModality,       // "auto" | "manual"
   setAudioModality,    // (modality) => void
+  audioIdleTimeoutSec, // seconds before AUTO fade-out to mute (2–10, default 4)
+  setAudioIdleTimeoutSec, // (seconds) => void
+  AUDIO_IDLE_TIMEOUT_MIN_S, // 2
+  AUDIO_IDLE_TIMEOUT_MAX_S, // 10
+  AUDIO_IDLE_TIMEOUT_STEP_S, // 1
+  AUDIO_IDLE_FADE_DURATION_MS, // 500 — fade length, not the slider value
   CLARINET_OCTAVES,    // { DEFAULT: "default", DOWN_1: "down1", DOWN_2: "down2" }
   CLARINET_OCTAVE_LABELS,
   clarinetOctave,      // "default" | "down1" | "down2"
@@ -467,7 +473,42 @@ export function MixerModality() {
 }
 ```
 
-### 6. Clarinet octave (continuous range)
+### 6. AUTO idle timeout (slider)
+
+Only applies in **AUTO**. The value is how many seconds of inactivity pass before sonification fades out and mutes. Default is 4. The fade itself is always the last 0.5s of that window (at 4s, fade starts at 3.5s and mute lands at 4s; at 10s, fade starts at 9.5s).
+
+```jsx
+import { useMixer } from "../context/MixerContext";
+
+export function MixerIdleTimeout() {
+  const {
+    audioIdleTimeoutSec,
+    setAudioIdleTimeoutSec,
+    AUDIO_IDLE_TIMEOUT_MIN_S,
+    AUDIO_IDLE_TIMEOUT_MAX_S,
+    AUDIO_IDLE_TIMEOUT_STEP_S,
+  } = useMixer();
+
+  return (
+    <label>
+      Auto mute after {audioIdleTimeoutSec}s
+      <input
+        type="range"
+        min={AUDIO_IDLE_TIMEOUT_MIN_S}
+        max={AUDIO_IDLE_TIMEOUT_MAX_S}
+        step={AUDIO_IDLE_TIMEOUT_STEP_S}
+        value={audioIdleTimeoutSec}
+        onChange={(e) => setAudioIdleTimeoutSec(Number(e.target.value))}
+        aria-valuetext={`${audioIdleTimeoutSec} seconds`}
+      />
+    </label>
+  );
+}
+```
+
+Values outside 2–10 are clamped. Non-numbers are ignored. Changing the slider restarts the current idle window.
+
+### 7. Clarinet octave (continuous range)
 
 ```jsx
 import { useMixer } from "../context/MixerContext";
@@ -510,6 +551,6 @@ export function MixerClarinetOctave() {
    - `setGroupMuted(MIXER_GROUPS.earcons, true)` — landmarks/borders/ticks silent
    - `setChannelMuted(MIXER_CHANNELS.pinkNoise, true)` — no pink noise
 4. Confirm **P** still mutes everything regardless of mixer faders.
-5. Confirm AUTO (default): leave the clarinet ringing, wait ~3.5s for a fade then mute at 4s; move again and it returns. First ←/→ or **B** after a reload should arm audio without **P**.
+5. Confirm AUTO (default): leave the clarinet ringing, wait ~3.5s for a fade then mute at 4s; move again and it returns. `setAudioIdleTimeoutSec(10)` should fade at 9.5s and mute at 10s. First ←/→ or **B** after a reload should arm audio without **P**.
 6. Confirm MANUAL: `setAudioModality(AUDIO_MODALITIES.MANUAL)` — idle no longer ducks, and cursor keys do not auto-enable.
 7. Confirm clarinet octave: with continuous sonification, `setClarinetOctave(CLARINET_OCTAVES.DOWN_2)` drops the whole y-mapped range two octaves; guitar notes stay the same.

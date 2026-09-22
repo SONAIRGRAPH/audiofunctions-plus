@@ -2,12 +2,31 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import mixerBus, { MIXER_GROUPS, MIXER_GROUP_LABELS, MIXER_CHANNELS } from "../audio/mixerBus";
 import { ensureToneStarted } from "../utils/toneAudio";
 
-/** AUTO idle: full mute after this many ms without activity. */
-export const AUDIO_IDLE_MUTE_MS = 4000;
-/** AUTO idle: start master-gain fade-out after this many ms (before mute). */
-export const AUDIO_IDLE_FADE_START_MS = 3500;
-/** Duration of the idle fade-out (AUDIO_IDLE_MUTE_MS - AUDIO_IDLE_FADE_START_MS). */
-export const AUDIO_IDLE_FADE_DURATION_MS = AUDIO_IDLE_MUTE_MS - AUDIO_IDLE_FADE_START_MS;
+/** Length of the AUTO idle fade-out, immediately before full mute. */
+export const AUDIO_IDLE_FADE_DURATION_MS = 500;
+
+/**
+ * AUTO idle timeout slider (seconds of inactivity before fade-out to mute).
+ * Fade always occupies the last AUDIO_IDLE_FADE_DURATION_MS of this window.
+ */
+export const AUDIO_IDLE_TIMEOUT_MIN_S = 2;
+export const AUDIO_IDLE_TIMEOUT_MAX_S = 10;
+export const AUDIO_IDLE_TIMEOUT_DEFAULT_S = 4;
+export const AUDIO_IDLE_TIMEOUT_STEP_S = 1;
+
+const normalizeIdleTimeoutSec = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const clamped = Math.min(
+    AUDIO_IDLE_TIMEOUT_MAX_S,
+    Math.max(AUDIO_IDLE_TIMEOUT_MIN_S, n)
+  );
+  const stepsFromMin = Math.round(
+    (clamped - AUDIO_IDLE_TIMEOUT_MIN_S) / AUDIO_IDLE_TIMEOUT_STEP_S
+  );
+  const snapped = AUDIO_IDLE_TIMEOUT_MIN_S + stepsFromMin * AUDIO_IDLE_TIMEOUT_STEP_S;
+  return Math.min(AUDIO_IDLE_TIMEOUT_MAX_S, Math.max(AUDIO_IDLE_TIMEOUT_MIN_S, snapped));
+};
 
 /**
  * MixerContext — React API for the audio mixer (UI colleagues).
@@ -102,8 +121,11 @@ const normalizeClarinetOctave = (value) => {
  *   setIsAudioEnabled (bool | fn) => void
  *   toggleAudio       P / header: toggle the user's mute/unmute choice
  *   isOutputOpen      true when sound should actually reach the speakers
- *   isIdleFading      AUTO: true while master gain is fading out (3.5s→4s idle)
+ *   isIdleFading      AUTO: true while master gain is fading out (last 500ms)
  *   AUDIO_IDLE_FADE_DURATION_MS  length of that fade (500ms)
+ *   audioIdleTimeoutSec  seconds of inactivity before AUTO fade-out to mute (2–10, default 4)
+ *   setAudioIdleTimeoutSec (seconds) => void   clamped to the slider range, snapped to step
+ *   AUDIO_IDLE_TIMEOUT_MIN_S / MAX_S / STEP_S / DEFAULT_S  bind these on the slider
  *   tryEnableFromCursorNavigation  first-load AUTO enable (arrow / B / Space)
  *
  * `groups` / `channels` update automatically when the bus creates, removes, or
@@ -128,6 +150,7 @@ export const MixerProvider = ({ children }) => {
   // (channels appear later, when sonification creates them).
   const [mixerState, setMixerState] = useState(() => mixerBus.getState());
   const [audioModality, setAudioModalityState] = useState(AUDIO_MODALITIES.AUTO);
+  const [audioIdleTimeoutSec, setAudioIdleTimeoutSecState] = useState(AUDIO_IDLE_TIMEOUT_DEFAULT_S);
   const [clarinetOctave, setClarinetOctaveState] = useState(CLARINET_OCTAVES.DEFAULT);
   const [isAudioEnabled, setIsAudioEnabledState] = useState(false);
   const [isOverlayMuted, setIsOverlayMuted] = useState(false);
@@ -138,11 +161,13 @@ export const MixerProvider = ({ children }) => {
   const idleFadeTimerRef = useRef(null);
   const idleMuteTimerRef = useRef(null);
   const audioModalityRef = useRef(audioModality);
+  const audioIdleTimeoutSecRef = useRef(audioIdleTimeoutSec);
   const isIdleHoldRef = useRef(isIdleHold);
   const isAudioEnabledRef = useRef(isAudioEnabled);
   const hasConsumedFirstAutoEnableRef = useRef(false);
 
   audioModalityRef.current = audioModality;
+  audioIdleTimeoutSecRef.current = audioIdleTimeoutSec;
   isIdleHoldRef.current = isIdleHold;
   isAudioEnabledRef.current = isAudioEnabled;
 
@@ -169,26 +194,30 @@ export const MixerProvider = ({ children }) => {
     !isIdleHoldRef.current &&
     isAudioEnabledRef.current;
 
-  // AUTO: activity lifts idle mute/fade and restarts the 4s window
-  // (fade from 3.5s, mute at 4s). MANUAL never idle-mutes.
+  // AUTO: activity lifts idle mute/fade and restarts the idle window
+  // (fade during the last AUDIO_IDLE_FADE_DURATION_MS, then mute).
+  // MANUAL never idle-mutes.
   const notifyActivity = useCallback(() => {
     setIsIdleMuted(false);
     setIsIdleFading(false);
     clearIdleTimers();
     if (!canScheduleIdleMute()) return;
 
+    const muteMs = audioIdleTimeoutSecRef.current * 1000;
+    const fadeStartMs = Math.max(0, muteMs - AUDIO_IDLE_FADE_DURATION_MS);
+
     idleFadeTimerRef.current = setTimeout(() => {
       idleFadeTimerRef.current = null;
       if (!canScheduleIdleMute()) return;
       setIsIdleFading(true);
-    }, AUDIO_IDLE_FADE_START_MS);
+    }, fadeStartMs);
 
     idleMuteTimerRef.current = setTimeout(() => {
       idleMuteTimerRef.current = null;
       if (!canScheduleIdleMute()) return;
       setIsIdleFading(false);
       setIsIdleMuted(true);
-    }, AUDIO_IDLE_MUTE_MS);
+    }, muteMs);
   }, [clearIdleTimers]);
 
   useEffect(() => {
@@ -211,6 +240,18 @@ export const MixerProvider = ({ children }) => {
       return;
     }
     setClarinetOctaveState(next);
+  }, []);
+
+  // Seconds until AUTO fade-out to mute. Out-of-range values clamp; non-numbers are ignored.
+  const setAudioIdleTimeoutSec = useCallback((seconds) => {
+    const next = normalizeIdleTimeoutSec(seconds);
+    if (next == null) {
+      console.warn(
+        `Invalid AUTO idle timeout: ${seconds}. Use a number of seconds between ${AUDIO_IDLE_TIMEOUT_MIN_S} and ${AUDIO_IDLE_TIMEOUT_MAX_S}.`
+      );
+      return;
+    }
+    setAudioIdleTimeoutSecState(next);
   }, []);
 
   // Linear volume 0..1 (clamped in the bus). Mute is independent of the stored volume.
@@ -257,7 +298,7 @@ export const MixerProvider = ({ children }) => {
     return true;
   }, [notifyActivity]);
 
-  // Start (or clear) the idle window when arming, modality, or batch-hold changes.
+  // Start (or clear) the idle window when arming, modality, batch-hold, or timeout changes.
   useEffect(() => {
     if (audioModality !== AUDIO_MODALITIES.AUTO || !isAudioEnabled) {
       clearIdleTimers();
@@ -272,7 +313,7 @@ export const MixerProvider = ({ children }) => {
       return;
     }
     notifyActivity();
-  }, [audioModality, isAudioEnabled, isIdleHold, clearIdleTimers, notifyActivity]);
+  }, [audioModality, isAudioEnabled, isIdleHold, audioIdleTimeoutSec, clearIdleTimers, notifyActivity]);
 
   const isOutputOpen =
     isAudioEnabled &&
@@ -303,11 +344,15 @@ export const MixerProvider = ({ children }) => {
       CLARINET_OCTAVES,
       CLARINET_OCTAVE_LABELS,
       CLARINET_OCTAVE_SHIFT,
-      AUDIO_IDLE_MUTE_MS,
-      AUDIO_IDLE_FADE_START_MS,
       AUDIO_IDLE_FADE_DURATION_MS,
+      AUDIO_IDLE_TIMEOUT_MIN_S,
+      AUDIO_IDLE_TIMEOUT_MAX_S,
+      AUDIO_IDLE_TIMEOUT_DEFAULT_S,
+      AUDIO_IDLE_TIMEOUT_STEP_S,
       audioModality,
       setAudioModality,
+      audioIdleTimeoutSec,
+      setAudioIdleTimeoutSec,
       clarinetOctave,
       setClarinetOctave,
       isAudioEnabled,
@@ -328,6 +373,8 @@ export const MixerProvider = ({ children }) => {
       setChannelMuted,
       audioModality,
       setAudioModality,
+      audioIdleTimeoutSec,
+      setAudioIdleTimeoutSec,
       clarinetOctave,
       setClarinetOctave,
       isAudioEnabled,

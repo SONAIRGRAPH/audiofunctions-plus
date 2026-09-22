@@ -78,7 +78,7 @@ const isCursorNavigationKey = (event) => {
  *
  * Combines:
  *   - command palette / dialog overlay mute (existing behaviour)
- *   - AUTO idle mute after AUDIO_IDLE_MUTE_MS (fade from AUDIO_IDLE_FADE_START_MS)
+ *   - AUTO idle mute after audioIdleTimeoutSec (fade over AUDIO_IDLE_FADE_DURATION_MS before mute)
  *   - AUTO first-load enable when the user first moves the cursor (arrows, J/L, B, Space)
  *
  * Must render under MixerProvider, GraphContextProvider, DialogProvider, and CommandPaletteProvider.
