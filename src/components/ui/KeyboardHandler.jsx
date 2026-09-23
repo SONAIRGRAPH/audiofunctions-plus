@@ -419,7 +419,7 @@ export default function KeyboardHandler() {
 
                 case "ArrowLeft": case "ArrowRight": case "j": case "J": case "l": case "L":
                     // If batch sonification is active, stop it and keep cursor at current position
-                    if (PlayFunction.active && PlayFunction.source === "play") {
+                    if (PlayFunction.active && (PlayFunction.source === "play" || PlayFunction.source === "play_space")) {
                         setPlayFunction(prev => ({ ...prev, active: false }));
                         setExplorationMode("none");
                         // console.log("Batch sonification stopped by arrow key");
@@ -523,7 +523,7 @@ export default function KeyboardHandler() {
                     break;
 
                 case " ": // Spacebar plays batch sonification
-                    setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active }));
+                    setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active }));
                     event.preventDefault();
                     event.stopPropagation();
                     break;
