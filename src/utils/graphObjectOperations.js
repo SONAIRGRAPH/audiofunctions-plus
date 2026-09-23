@@ -2,6 +2,8 @@
  * Utility functions for working with functionDefinitions and graphSettings
  */
 
+import { isNearLandmark, landmarkWindows } from './landmarkGeometry';
+
 // =============================
 // Function Definitions Utilities
 // =============================
@@ -956,10 +958,12 @@ export function addLandmarkWithValidation(functionDefinitions, n, x, y, options 
     return { success: false, message: coordValidation.message };
   }
 
-  // Check for existing landmark at position (with tolerance)
-  const tolerance = 0.01;
-  const existingLandmark = currentLandmarks.find(landmark => 
-    Math.abs(landmark.x - x) < tolerance && Math.abs(landmark.y - y) < tolerance
+  // Check for existing landmark at position (zoom-aware tolerance when bounds are provided)
+  const windows = options.bounds
+    ? landmarkWindows(options.bounds, options.stepSize || 0)
+    : { matchX: 0.01, matchY: 0.01 };
+  const existingLandmark = currentLandmarks.find(landmark =>
+    isNearLandmark(landmark, x, y, windows)
   );
 
   if (existingLandmark) {
@@ -973,15 +977,16 @@ export function addLandmarkWithValidation(functionDefinitions, n, x, y, options 
   const landmarkNumber = getNextAvailableLandmarkNumber(currentLandmarks);
   
   // Create landmark with automatic earcon based on shape
-  const shape = options.shape || options.appearance || 'triangle';
-  const earcon = options.earcon || `landmark_${shape}`;
-  
+  const { bounds: _bounds, stepSize: _stepSize, ...landmarkOptions } = options;
+  const shape = landmarkOptions.shape || landmarkOptions.appearance || 'triangle';
+  const earcon = landmarkOptions.earcon || `landmark_${shape}`;
+
   const newLandmark = createLandmark(x, y, {
-    label: options.label || `Landmark ${landmarkNumber}`,
+    label: landmarkOptions.label || `Landmark ${landmarkNumber}`,
     shortcut: shortcut,
     earcon: earcon,
     shape: shape,
-    ...options
+    ...landmarkOptions
   });
 
   const updatedDefinitions = addLandmarkN(functionDefinitions, n, newLandmark);
