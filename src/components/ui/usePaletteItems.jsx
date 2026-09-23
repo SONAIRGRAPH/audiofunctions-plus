@@ -2,13 +2,12 @@ import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, Circl
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
   ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
-import { getFunctionNameN, setFunctionInstrumentN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
-import { jumpToLandmarkWithToast, addLandmarkAtCursorPosition } from "../../utils/landmarkUtils";
+import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
 import { THEMES, setTheme } from "../../utils/theme";
-import { useZoomBoard, useCenterAtCursor } from "./KeyboardHandler";
 import { useAnnouncement } from '../../context/AnnouncementContext';
-import { useInfoToast } from '../../context/InfoToastContext';
+import { useCommands } from "./useCommands";
+import { HOTKEYS, hotkeyFor, functionHotkey, landmarkHotkey } from "./hotkeys";
 
 // Icon per theme. A new theme only needs one line here -- label, keywords and
 // announcement live in the THEMES registry in utils/theme.js.
@@ -25,8 +24,26 @@ const THEME_ICONS = {
 const toKeywords = (keywords) => keywords.split(",").map((keyword) => keyword.trim()).filter(Boolean);
 
 /**
+ * Fills in shortcut and hint from `hotkeys.js`, by id.
+ *
+ * An item may carry its own `shortcut` instead -- that wins, and `KeyboardHandler`
+ * binds it as a global command. The table covers anything with a scope, several
+ * combinations or no palette entry.
+ */
+const withHotkeys = (items) => items.map((item) => ({
+  ...item,
+  shortcut: item.shortcut ?? hotkeyFor(item.id),
+  hint: item.hint ?? HOTKEYS[item.id]?.hint,
+  ...(item.children ? { children: withHotkeys(item.children) } : null),
+}));
+
+/**
  * Every command of the application, as the item tree of
  * `components/ui/command-palette`.
+ *
+ * Structure, label, icon and keywords live here; what an entry does lives in
+ * `useCommands`, and which key triggers it in `hotkeys.js`, all three joined by the
+ * item id.
  *
  * Deliberately not memoised: the array is rebuilt on every render so that each
  * `perform` closes over the current graph state. A dependency list would have to
@@ -36,146 +53,21 @@ const toKeywords = (keywords) => keywords.split(",").map((keyword) => keyword.tr
  * changes that do not alter what the user sees.
  */
 export const usePaletteItems = () => {
-  const { isAudioEnabled, setIsAudioEnabled, cursorCoords, functionDefinitions, setFunctionDefinitions, setPlayFunction, graphSettings, graphBounds, setGraphBounds, updateCursor, focusChart } = useGraphContext();
+  const { isAudioEnabled, functionDefinitions, graphSettings, focusChart } = useGraphContext();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
-  const { showInfoToast, showLandmarkToast } = useInfoToast();
+  const commands = useCommands();
 
-  // Function to jump to landmark using utility
-  const jumpToLandmark = (landmark) => {
-    jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast);
+  // Hands focus back to the chart afterwards. Dialogs manage their own focus and use
+  // `openDialog` directly instead.
+  const run = (commandId, ...args) => () => {
+    commands[commandId](...args);
+    setTimeout(() => focusChart(), 100);
   };
 
   // Check if in read-only or full-restriction mode
   const isReadOnly = graphSettings?.restrictionMode === "read-only";
   const isFullyRestricted = graphSettings?.restrictionMode === "full-restriction";
-
-  const ZoomBoard = useZoomBoard();
-  const centerAtCursor = useCenterAtCursor();
-
-  const showCoordinates = () => {
-    if (!cursorCoords || cursorCoords.length === 0) {
-        announce("No cursor position available");
-        return;
-    }
-
-    const messages = cursorCoords.map(coord => {
-        const functionIndex = functionDefinitions.findIndex(f => f.id === coord.functionId);
-        const functionName = getFunctionNameN(functionDefinitions, functionIndex) || `Function ${functionIndex + 1}`;
-        const roundedX = Number(coord.x).toFixed(2);
-        const roundedY = Number(coord.y).toFixed(2);
-
-        // Check if there's a landmark at the current position
-        const landmarks = getLandmarksN(functionDefinitions, functionIndex);
-        const epsilon = 0.01; // Small tolerance for floating point comparison
-        const landmarkAtPosition = landmarks.find(landmark =>
-            Math.abs(landmark.x - coord.x) < epsilon &&
-            Math.abs(landmark.y - coord.y) < epsilon
-        );
-
-        let message = `${functionName}: `;
-        if (landmarkAtPosition) {
-            message += `"${landmarkAtPosition.label}" at \n`;
-        }
-        message += `x = ${roundedX}, y = ${roundedY}`;
-
-        return message;
-    });
-
-    const message = messages.join('\n');
-    announce(`Current Coordinates:\n\n${message}`);
-    showInfoToast(`Current Coordinates:\n\n${message}`);
-  };
-
-
-  const showViewBounds = () => {
-    const { xMin, xMax, yMin, yMax } = graphBounds;
-    const roundedXMin = Number(xMin).toFixed(2);
-    const roundedXMax = Number(xMax).toFixed(2);
-    const roundedYMin = Number(yMin).toFixed(2);
-    const roundedYMax = Number(yMax).toFixed(2);
-    const message = `Current View Bounds:\n\nX: [${roundedXMin}, ${roundedXMax}]\nY: [${roundedYMin}, ${roundedYMax}]`;
-    announce(message);
-    showInfoToast(message);
-  }
-
-  // Switch to next active function
-  const switchToNextFunction = () => {
-    if (!functionDefinitions || functionDefinitions.length === 0) return;
-
-    // Find currently active function
-    const currentActiveIndex = functionDefinitions.findIndex(func => func.isActive);
-
-    // If no function is active, activate the first one
-    if (currentActiveIndex === -1) {
-      if (functionDefinitions.length > 0) {
-        const updatedDefinitions = functionDefinitions.map((func, index) => ({
-          ...func,
-          isActive: index === 0
-        }));
-        setFunctionDefinitions(updatedDefinitions);
-      }
-      return;
-    }
-
-    // Find next function index (rotate through the list)
-    const nextIndex = (currentActiveIndex + 1) % functionDefinitions.length;
-
-    // Deactivate all functions and activate the next one
-    const updatedDefinitions = functionDefinitions.map((func, index) => ({
-      ...func,
-      isActive: index === nextIndex
-    }));
-
-    setFunctionDefinitions(updatedDefinitions);
-
-    // Announce the switch
-    const functionName = getFunctionNameN(functionDefinitions, nextIndex) || `Function ${nextIndex + 1}`;
-    announce(`Switched to ${functionName}`);
-    showInfoToast(`${functionName}`, 1500);
-  };
-
-  // Show specific function and hide all others
-  const showOnlyFunction = (targetIndex) => {
-    if (!functionDefinitions || targetIndex < 0 || targetIndex >= functionDefinitions.length) return;
-
-    const updatedDefinitions = functionDefinitions.map((func, index) => ({
-      ...func,
-      isActive: index === targetIndex
-    }));
-
-    setFunctionDefinitions(updatedDefinitions);
-
-    // Announce the switch
-    const functionName = getFunctionNameN(functionDefinitions, targetIndex) || `Function ${targetIndex + 1}`;
-    announce(`Switched to ${functionName}`);
-    showInfoToast(`${functionName}`, 1500);
-  };
-
-  // Toggle sonification type for active function and apply to all functions
-  const toggleSonificationType = () => {
-    if (!functionDefinitions || functionDefinitions.length === 0) return;
-
-    // Find currently active function
-    const activeIndex = functionDefinitions.findIndex(func => func.isActive);
-    if (activeIndex === -1) return;
-
-    const currentInstrument = getFunctionInstrumentN(functionDefinitions, activeIndex);
-
-    // Toggle between discrete (guitar) and continuous (clarinet) sonification
-    const newInstrument = currentInstrument === 'guitar' ? 'clarinet' : 'guitar';
-    const sonificationType = newInstrument === 'guitar' ? 'discrete' : 'continuous';
-
-    // Apply the new instrument to ALL functions
-    const updatedDefinitions = functionDefinitions.map((func) =>
-      setFunctionInstrumentN([func], 0, newInstrument)[0]
-    );
-
-    setFunctionDefinitions(updatedDefinitions);
-
-    announce(`Sonification type changed to ${sonificationType}`);
-    showInfoToast(`Sonification type: ${sonificationType}`, 1500);
-  };
 
   // Get current sonification type for active function
   const getCurrentSonificationType = () => {
@@ -184,8 +76,7 @@ export const usePaletteItems = () => {
     const activeIndex = functionDefinitions.findIndex(func => func.isActive);
     if (activeIndex === -1) return 'continuous';
 
-    const currentInstrument = getFunctionInstrumentN(functionDefinitions, activeIndex);
-    return currentInstrument === 'guitar' ? 'discrete' : 'continuous';
+    return getFunctionInstrumentN(functionDefinitions, activeIndex) === 'guitar' ? 'discrete' : 'continuous';
   };
 
   const currentSonificationType = getCurrentSonificationType();
@@ -196,25 +87,12 @@ export const usePaletteItems = () => {
   const activeFunctionIndex = activeFunction ? functionDefinitions.findIndex(f => f.id === activeFunction.id) : -1;
   const landmarks = activeFunction ? getLandmarksN(functionDefinitions, activeFunctionIndex) : [];
 
-  // Function to add landmark at current cursor position using utility
-  const addLandmarkAtCursor = () => {
-    addLandmarkAtCursorPosition(
-      functionDefinitions,
-      cursorCoords,
-      setFunctionDefinitions,
-      announce,
-      showInfoToast,
-      openDialog
-    );
-  };
-
-  return [
+  return withHotkeys([
 
     // quick options
     {
       id: "quick-options",
       label: "Quick Options",
-      shortcut: ["Q"],
       keywords: toKeywords("quick, quickoptions"),
       icon: <List />,
       children: [
@@ -222,9 +100,8 @@ export const usePaletteItems = () => {
         {
           id: "toggle-audio",
           label: isAudioEnabled ? "Disable Sound" : "Enable Sound",
-          shortcut: ["P"],
           keywords: toKeywords("audio, sound, enable, disable, start, stop, toggle, sonify, sonification, music, tone, mute, unmute, volume, hearing"),
-          perform: () => {setIsAudioEnabled(prev => !prev); setTimeout(() => focusChart(), 100);},
+          perform: run("toggle-audio"),
           icon: isAudioEnabled
             ? <VolumeX />
             : <Volume2 />,
@@ -233,97 +110,72 @@ export const usePaletteItems = () => {
         {
           id: "play-function",
           label: "Play Function",
-          shortcut: ["B"],
           keywords: toKeywords("play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole"),
-          perform: () => {setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })); setTimeout(() => focusChart(), 100);},
+          perform: run("play-function"),
           icon: <Play />,
         },
 
         {
           id: "next-function",
           label: "Next Function",
-          shortcut: ["N"],
           keywords: toKeywords("switch, function, next, rotate, cycle, change, active, select, navigate, iterate, loop"),
-          perform: () => {switchToNextFunction(); setTimeout(() => focusChart(), 100);},
+          perform: run("next-function"),
           icon: <ListRestart />,
         },
 
         {
           id: "toggle-sonification-type",
           label: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Continuous' : 'Discrete'}`,
-          shortcut: ["I"],
           keywords: toKeywords("sonification, instrument, discrete, continuous, guitar, clarinet, toggle, sound, type, mode, timbre"),
-          perform: () => {toggleSonificationType(); setTimeout(() => focusChart(), 100);},
+          perform: run("toggle-sonification-type"),
           icon: <Music />,
         },
 
         {
           id: "show-coordinates",
           label: "Show Current Coordinates",
-          shortcut: ["C"],
           keywords: toKeywords("coordinates, position, location, cursor, point, x, y, current, where, place"),
-          perform: () => {showCoordinates(); setTimeout(() => focusChart(), 100);},
+          perform: run("show-coordinates"),
           icon: <MapPin />,
         },
 
         {
           id: "show-view-bounds",
           label: "Show current view bounds",
-          shortcut: ["V"],
           keywords: toKeywords("bound, view, range, axis, limits, window, viewport, boundaries, min, max, xmin, xmax, ymin, ymax, scale, zoom"),
-          perform: () => {showViewBounds(); setTimeout(() => focusChart(), 100);},
+          perform: run("show-view-bounds"),
           icon: <Ruler />,
         },
 
         {
           id: "center-at-cursor",
           label: "Center View at Cursor",
-          shortcut: ["Mod", "Z"],
           keywords: toKeywords("center, cursor, view, middle, position, focus, centering, navigate, jump, move"),
-          perform: () => {centerAtCursor(); setTimeout(() => focusChart(), 100);},
+          perform: run("center-at-cursor"),
           icon: <Target />,
         },
 
         {
           id: "zoom-in",
           label: "Zoom In",
-          shortcut: ["Z"],
-          hint: "may hold",
           keywords: toKeywords("zoom, in, closer, magnify, enlarge, scale, view, detail"),
-          perform: () => {ZoomBoard(false); setTimeout(() => focusChart(), 100);},
+          perform: run("zoom-in"),
           icon: <ZoomIn />,
         },
 
         {
           id: "zoom-out",
           label: "Zoom Out",
-          shortcut: ["Shift", "Z"],
-          hint: "may hold",
           keywords: toKeywords("zoom, out, farther, shrink, reduce, scale, view, overview"),
-          perform: () => {ZoomBoard(true); setTimeout(() => focusChart(), 100);},
+          perform: run("zoom-out"),
           icon: <ZoomOut />,
         },
 
         {
           id: "reset-view",
           label: "Reset View",
-          shortcut: ["R"],
           keywords: toKeywords("reset, restore, standard, default, original, initial, revert, back"),
-          perform: () => {
-            const defaultView = graphSettings?.defaultView;
-            if (defaultView && Array.isArray(defaultView) && defaultView.length === 4) {
-                const [xMin, xMax, yMax, yMin] = defaultView;
-                setGraphBounds({ xMin, xMax, yMin, yMax });
-              } else {
-                setGraphBounds({ xMin: -10, xMax: 10, yMin: -10, yMax: 10 });
-              }
-              updateCursor(0);
-
-              announce("View reset to default values");
-              showInfoToast("Default view", 1500);
-
-              setTimeout(() => focusChart(), 100);
-          },
+          perform: run("reset-view"),
           icon: <RotateCcw />,
         },
 
@@ -344,14 +196,27 @@ export const usePaletteItems = () => {
       ...landmarks.map((landmark, index) => ({
         id: `jump-to-landmark-${index}`,
         label: `${landmark.label || `Landmark ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
-        shortcut: landmark.shortcut ? ["Ctrl", landmark.shortcut] : undefined,
+        ...(landmark.shortcut ? landmarkHotkey(landmark.shortcut) : null),
         keywords: toKeywords(`landmark, jump, goto, navigate, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`),
-        perform: () => {
-          jumpToLandmark(landmark);
-          setTimeout(() => focusChart(), 100);
-        },
+        perform: run("jump-to-landmark-object", landmark),
         icon: <MapPin />,
       })),
+
+      {
+        id: "prev-landmark",
+        label: "Previous Landmark",
+        keywords: toKeywords("landmark, previous, back, left, jump, navigate, boundary, edge"),
+        perform: run("prev-landmark"),
+        icon: <MapPin />,
+      },
+
+      {
+        id: "next-landmark",
+        label: "Next Landmark",
+        keywords: toKeywords("landmark, next, forward, right, jump, navigate, boundary, edge"),
+        perform: run("next-landmark"),
+        icon: <MapPin />,
+      },
 
       // Edit landmarks parent - only show if there are landmarks
       ...(landmarks.length > 0 ? [{
@@ -379,12 +244,8 @@ export const usePaletteItems = () => {
       {
         id: "add-landmark",
         label: "Add Landmark at Cursor",
-        shortcut: ["Mod", "B"],
         keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor"),
-        perform: () => {
-          addLandmarkAtCursor();
-          setTimeout(() => focusChart(), 100);
-        },
+        perform: run("add-landmark"),
         icon: <Plus />,
       },
 
@@ -406,9 +267,9 @@ export const usePaletteItems = () => {
         return {
           id: `show-function-${index}`,
           label: `Show ${functionName}`,
-          shortcut: index < 9 ? [(index + 1).toString()] : undefined,
+          ...functionHotkey(index),
           keywords: toKeywords(`function, show, display, activate, select, switch, ${functionName}, graph, plot, f${index + 1}, Choose ${functionName}, Choose ${index + 1}`),
-          perform: () => {showOnlyFunction(index); setTimeout(() => focusChart(), 100);},
+          perform: run("show-function", index),
           icon: <Eye />,
         };
       }),
@@ -416,13 +277,12 @@ export const usePaletteItems = () => {
       // Edit functions - only show if not in full-restriction mode
       ...(!isFullyRestricted ? [
         {
-          id: "change-function",
+          id: "functions-menu",
           label: isReadOnly ? "View Functions" : "Edit Functions",
-          shortcut: ["F"],
           keywords: isReadOnly
             ? toKeywords("function, view, read, inspect, examine, look, display, show, formula, equation, math")
             : toKeywords("function, change, edit, modify, create, add, insert, remove, delete, formula, equation, math, input, type, write"),
-          perform: () => {openDialog("edit-function");},
+          perform: () => commands["functions-menu"](),
           icon: <ChartSpline />,
         }
       ] : []),
@@ -449,9 +309,8 @@ export const usePaletteItems = () => {
       {
         id: "movement-adjustments",
         label: "Movement Adjustments",
-        shortcut: ["M"],
         keywords: toKeywords("movement, speed, step, navigation, adjustments, cursor, motion, velocity, increment, stepsize, keyboard, arrow, smooth, stepwise"),
-        perform: () => openDialog("movement-adjustments"),
+        perform: () => commands["movement-adjustments"](),
         icon: <CircleGauge />,
       },
 
@@ -539,9 +398,8 @@ export const usePaletteItems = () => {
       {
         id: "help",
         label: "Help",
-        shortcut: ["F1"],
         keywords: toKeywords("help, tutorial, guide, welcome, introduction, getting, started, how, to, use, learn, documentation, manual, instructions"),
-        perform: () => openDialog("welcome"),
+        perform: () => commands["help"](),
         icon: <HelpCircle />,
       },
 
@@ -556,5 +414,5 @@ export const usePaletteItems = () => {
     ],
   },
 
-  ];
+  ]);
 };

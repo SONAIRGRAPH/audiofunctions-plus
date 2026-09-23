@@ -1,5 +1,7 @@
 /**
- * Shortcuts are token arrays (`['Mod', 'K']`) rendered three ways:
+ * A shortcut is a combination: an array of key names, `['Mod', 'K']`.
+ *
+ * Rendered three ways:
  *
  *  - `shortcutGlyphs`  visible and symbolic (`⌘K`), always `aria-hidden`
  *  - `shortcutSpeech`  spelled out ("Control plus K"), this is what gets announced
@@ -63,22 +65,22 @@ const ARIA_TOKENS = {
 }
 
 /**
- * @param {string[]} tokens
+ * @param {string[]} combo key names
  * @param {Record<string, string>} [overrides] from `labels.keyGlyphs`
  * @returns {string} e.g. `⌘K` or `Ctrl+K`
  */
-export function shortcutGlyphs(tokens, overrides = {}) {
-  return tokens.map((token) => overrides[token] ?? GLYPHS[token] ?? token).join(IS_MAC ? '' : '+')
+export function shortcutGlyphs(combo, overrides = {}) {
+  return combo.map((key) => overrides[key] ?? GLYPHS[key] ?? key).join(IS_MAC ? '' : '+')
 }
 
 /**
- * @param {string[]} tokens
+ * @param {string[]} combo key names
  * @param {Record<string, string>} [overrides] from `labels.keys`
  * @param {string} [joiner] from `labels.keyJoiner`
  * @returns {string} e.g. `Control plus K`
  */
-export function shortcutSpeech(tokens, overrides = {}, joiner = ' plus ') {
-  return tokens.map((token) => overrides[token] ?? SPEECH[token] ?? token).join(joiner)
+export function shortcutSpeech(combo, overrides = {}, joiner = ' plus ') {
+  return combo.map((key) => overrides[key] ?? SPEECH[key] ?? key).join(joiner)
 }
 
 /**
@@ -86,6 +88,6 @@ export function shortcutSpeech(tokens, overrides = {}, joiner = ' plus ') {
  *
  * @returns {string} e.g. `Control+K` for `aria-keyshortcuts`
  */
-export function shortcutAria(tokens) {
-  return tokens.map((token) => ARIA_TOKENS[token] ?? token).join('+')
+export function shortcutAria(combo) {
+  return combo.map((key) => ARIA_TOKENS[key] ?? key).join('+')
 }
