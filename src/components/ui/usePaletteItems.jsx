@@ -1,6 +1,6 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
-  ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ListRestart, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
+  ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
@@ -120,7 +120,15 @@ export const usePaletteItems = () => {
           label: "Next Function",
           keywords: toKeywords("switch, function, next, rotate, cycle, change, active, select, navigate, iterate, loop"),
           perform: run("next-function"),
-          icon: <ListRestart />,
+          icon: <ArrowRightFromLine />,
+        },
+
+        {
+          id: "prev-function",
+          label: "Previous Function",
+          keywords: toKeywords("switch, function, previous, prior, back, rotate, cycle, change, active, select, navigate"),
+          perform: run("prev-function"),
+          icon: <ArrowLeftFromLine />,
         },
 
         {

@@ -214,16 +214,18 @@ export function useCommands() {
     showInfoToast(message);
   };
 
-  const switchToNextFunction = () => {
+  /** Step through the functions, wrapping around at either end. */
+  const switchFunctionBy = (offset) => {
     if (!functionDefinitions || functionDefinitions.length === 0) return;
 
+    const count = functionDefinitions.length;
     const currentActiveIndex = functionDefinitions.findIndex(func => func.isActive);
-    // No function active yet: start with the first one.
-    const nextIndex = currentActiveIndex === -1
-      ? 0
-      : (currentActiveIndex + 1) % functionDefinitions.length;
+    // No function active yet: start at the end the step comes from.
+    const targetIndex = currentActiveIndex === -1
+      ? (offset > 0 ? 0 : count - 1)
+      : (currentActiveIndex + offset + count) % count;
 
-    showOnlyFunction(nextIndex);
+    showOnlyFunction(targetIndex);
   };
 
   /** Switch every function between the discrete (guitar) and continuous (clarinet) instrument. */
@@ -266,7 +268,8 @@ export function useCommands() {
     'play-function': () => setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })),
     // GraphView renders "play_space" differently from "play".
     'play-function-space': () => setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active })),
-    'next-function': switchToNextFunction,
+    'next-function': () => switchFunctionBy(1),
+    'prev-function': () => switchFunctionBy(-1),
     'toggle-sonification-type': toggleSonificationType,
     'show-coordinates': showCoordinates,
     'show-view-bounds': showViewBounds,

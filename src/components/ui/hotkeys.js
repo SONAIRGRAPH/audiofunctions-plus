@@ -31,6 +31,7 @@ export const HOTKEYS = {
   'toggle-audio': { combos: [['P']], scope: 'global' },
   'play-function': { combos: [['B']], scope: 'global' },
   'next-function': { combos: [['N']], scope: 'global' },
+  'prev-function': { combos: [['Shift', 'N']], scope: 'global' },
   'toggle-sonification-type': { combos: [['I']], scope: 'global' },
   'show-coordinates': { combos: [['C']], scope: 'global' },
   'show-view-bounds': { combos: [['V']], scope: 'global' },
