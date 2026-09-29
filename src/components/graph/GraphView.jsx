@@ -177,7 +177,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -915,15 +915,19 @@ const GraphView = () => {
           return;
         }
 
+        // From the ref, not from the captured PlayFunction: changing the speed replaces
+        // that object, which this closure would never see.
+        const currentSpeed = playSpeedRef.current;
+
         // Use direction to determine movement direction
         let actualSpeed;
         if (PlayFunction.source === "keyboard") {
-          actualSpeed = Math.abs(PlayFunction.speed) * PlayFunction.direction;
+          actualSpeed = Math.abs(currentSpeed) * PlayFunction.direction;
         } else if (PlayFunction.source === "play") {
           // For batch sonification, use the speed directly (positive = right, negative = left)
-          actualSpeed = PlayFunction.speed;
+          actualSpeed = currentSpeed;
         } else {
-          actualSpeed = PlayFunction.speed;
+          actualSpeed = currentSpeed;
         }
         PlayFunction.x += ((graphBounds.xMax - graphBounds.xMin) / (1000 / PlayFunction.interval)) * (actualSpeed / 100);
 
@@ -941,8 +945,8 @@ const GraphView = () => {
         // For batch sonification, only stop when reaching the opposite boundary
         if (PlayFunction.source === "play") {
           // For batch sonification, stop when reaching the right boundary (if speed > 0) or left boundary (if speed < 0)
-          const shouldStop = (PlayFunction.speed > 0 && PlayFunction.x >= graphBounds.xMax - tolerance) ||
-                           (PlayFunction.speed < 0 && PlayFunction.x <= graphBounds.xMin + tolerance);
+          const shouldStop = (currentSpeed > 0 && PlayFunction.x >= graphBounds.xMax - tolerance) ||
+                           (currentSpeed < 0 && PlayFunction.x <= graphBounds.xMin + tolerance);
           if (shouldStop) {
             clearInterval(currentTimerRef.current);
             currentTimerRef.current = null;
@@ -1024,6 +1028,12 @@ const GraphView = () => {
   useEffect(() => {
     playActiveRef.current = PlayFunction.active;
   }, [PlayFunction.active]);
+
+  // Same for the speed, which the running movement loop reads from the ref so a change
+  // takes effect mid-movement instead of only on the next playback.
+  useEffect(() => {
+    playSpeedRef.current = PlayFunction.speed;
+  }, [PlayFunction.speed, playSpeedRef]);
 
   useEffect(() => {
     if (boardRef.current) {

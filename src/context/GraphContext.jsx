@@ -22,6 +22,9 @@ export const GraphContextProvider = ({ children }) => {
   });
   const [PlayFunction, setPlayFunction] = useState({ active: false, x: 0, speed: 10, interval: 10, source: null, direction: 1 });
   const playActiveRef = useRef(false);
+  // The movement loop in GraphView is set up once per playback and would otherwise keep
+  // reading the speed captured back then. Kept in step with PlayFunction.speed there.
+  const playSpeedRef = useRef(10);
   const timerRef = useRef(null);
   const mouseTimeoutRef = useRef(null);
   const [updateCursor, setUpdateCursor] = useState(null);
@@ -173,6 +176,7 @@ export const GraphContextProvider = ({ children }) => {
         PlayFunction,
         setPlayFunction,
         playActiveRef,
+        playSpeedRef,
         timerRef,
         mouseTimeoutRef,
         inputRefs,
