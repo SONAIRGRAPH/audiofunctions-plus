@@ -12,6 +12,7 @@ import {
 } from "../../utils/graphObjectOperations";
 import {
   addLandmarkAtCursorPosition,
+  removeLandmarkAtCursorPosition,
   jumpToLandmarkWithToast,
 } from "../../utils/landmarkUtils";
 
@@ -308,6 +309,15 @@ export function useCommands() {
       showInfoToast,
       openDialog,
       { openEditor: false },
+    ),
+
+    // Only removes something when the cursor stands on a landmark.
+    'delete-landmark': () => removeLandmarkAtCursorPosition(
+      functionDefinitions,
+      cursorCoords,
+      setFunctionDefinitions,
+      announce,
+      showInfoToast,
     ),
 
     'functions-menu': () => openDialog("edit-function"),

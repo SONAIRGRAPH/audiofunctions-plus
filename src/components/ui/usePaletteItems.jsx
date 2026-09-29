@@ -1,6 +1,6 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
-  ChartArea, FileChartLine, FilePlus, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
+  ChartArea, FileChartLine, FilePlus, Trash2, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
@@ -265,6 +265,14 @@ export const usePaletteItems = () => {
         keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, edit, label, settings, dialog"),
         perform: run("add-landmark"),
         icon: <FilePlus />,
+      },
+
+      {
+        id: "delete-landmark",
+        label: "Delete Landmark at Cursor",
+        keywords: toKeywords("delete, remove, landmark, bookmark, marker, erase, clear, cursor, position"),
+        perform: run("delete-landmark"),
+        icon: <Trash2 />,
       },
 
     ],

@@ -1,5 +1,8 @@
-import { getActiveFunctions, getLandmarksN, addLandmarkWithValidation } from './graphObjectOperations';
-import landmarkEarconManager from './landmarkEarcons';
+import { getActiveFunctions, getLandmarksN, addLandmarkWithValidation, removeLandmarkWithValidation } from './graphObjectOperations';
+
+// Same tolerance findLandmarkAtPosition uses, and wide enough for the two decimals the
+// cursor coordinates are rounded to.
+const LANDMARK_X_TOLERANCE = 0.01;
 
 /**
  * Calculate screen position from graph coordinates
@@ -262,3 +265,58 @@ export function addLandmarkAtCursorPosition(
   return { success: true, message: "Landmark created and dialog opened" };
 }
 
+/**
+ * Remove the landmark the cursor is standing on
+ *
+ * Matched by x alone: the cursor always sits on the curve, and its coordinates are
+ * rounded to two decimals, so a y comparison would miss on steep sections.
+ *
+ * @param {Array} functionDefinitions - Function definitions array
+ * @param {Array} cursorCoords - Cursor coordinates array
+ * @param {Function} setFunctionDefinitions - Function definitions setter
+ * @param {Function} announce - Announcement function
+ * @param {Function} showInfoToast - Info toast function
+ * @returns {Object} Result object
+ */
+export function removeLandmarkAtCursorPosition(
+  functionDefinitions,
+  cursorCoords,
+  setFunctionDefinitions,
+  announce,
+  showInfoToast
+) {
+  const validation = validateActiveFunction(functionDefinitions, cursorCoords);
+  if (!validation.valid) {
+    announce(validation.message);
+    return { success: false, message: validation.message };
+  }
+
+  const { activeFunctionIndex, cursorCoord } = validation;
+  const x = parseFloat(cursorCoord.x);
+
+  const landmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
+  const landmarkIndex = landmarks.findIndex(landmark => Math.abs(landmark.x - x) < LANDMARK_X_TOLERANCE);
+
+  if (landmarkIndex === -1) {
+    const message = `No landmark at x = ${x.toFixed(2)}`;
+    announce(message);
+    showInfoToast(message, 2000);
+    return { success: false, message };
+  }
+
+  const label = landmarks[landmarkIndex].label || `Landmark ${landmarkIndex + 1}`;
+  const result = removeLandmarkWithValidation(functionDefinitions, activeFunctionIndex, landmarkIndex);
+
+  if (!result.success) {
+    announce(result.message);
+    showInfoToast(`Error: ${result.message}`, 3000);
+    return result;
+  }
+
+  setFunctionDefinitions(result.definitions);
+
+  const message = `${label} deleted`;
+  announce(message);
+  showInfoToast(message, 2000);
+  return { success: true, message };
+}

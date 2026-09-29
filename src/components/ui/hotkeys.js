@@ -40,6 +40,7 @@ export const HOTKEYS = {
   'help': { combos: [['F1']], scope: 'global' },
   'add-landmark-quick': { combos: [['M']], scope: 'global' },
   'add-landmark': { combos: [['Mod', 'M']], scope: 'global' },
+  'delete-landmark': { combos: [['Delete']], scope: 'global' },
   'center-at-cursor': { combos: [['Mod', 'Z']], scope: 'global' },
 
   // --- chart focus ----------------------------------------------------------
