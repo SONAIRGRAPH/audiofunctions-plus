@@ -15,6 +15,7 @@ import {
   removeLandmarkAtCursorPosition,
   jumpToLandmarkWithToast,
 } from "../../utils/landmarkUtils";
+import { nextStepSize, nextSpeed } from "../../utils/movementSettings";
 
 /** Zooms the view around its centre, optionally along one axis only. */
 export const useZoomBoard = () => {
@@ -91,12 +92,15 @@ export const useCenterAtCursor = () => {
 export function useCommands() {
   const {
     setIsAudioEnabled,
+    PlayFunction,
     setPlayFunction,
     setGraphBounds,
     graphBounds,
     graphSettings,
     cursorCoords,
     updateCursor,
+    stepSize,
+    setStepSize,
     functionDefinitions,
     setFunctionDefinitions,
   } = useGraphContext();
@@ -248,6 +252,25 @@ export function useCommands() {
     showInfoToast(`Sonification type: ${sonificationType}`, 1500);
   };
 
+  /** Both movement settings report their new value the same way. */
+  const adjustStepSize = (direction) => {
+    const value = nextStepSize(stepSize, direction);
+    setStepSize(value);
+
+    const message = `Step size: ${value}`;
+    announce(message);
+    showInfoToast(message, 1500);
+  };
+
+  const adjustSpeed = (direction) => {
+    const value = nextSpeed(PlayFunction.speed, direction);
+    setPlayFunction(prev => ({ ...prev, speed: value }));
+
+    const message = `Speed: ${value}`;
+    announce(message);
+    showInfoToast(message, 1500);
+  };
+
   const resetView = () => {
     const defaultView = graphSettings?.defaultView;
     if (defaultView && Array.isArray(defaultView) && defaultView.length === 4) {
@@ -285,6 +308,11 @@ export function useCommands() {
     'pan-right': (event) => pan("x", 1, event),
     'pan-up': (event) => pan("y", 1, event),
     'pan-down': (event) => pan("y", -1, event),
+
+    'increase-step-size': () => adjustStepSize(1),
+    'decrease-step-size': () => adjustStepSize(-1),
+    'increase-speed': () => adjustSpeed(1),
+    'decrease-speed': () => adjustSpeed(-1),
 
     'cursor-start': () => updateCursor(graphBounds.xMin),
     'cursor-end': () => updateCursor(graphBounds.xMax),

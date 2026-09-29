@@ -1,6 +1,6 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
-  ChartArea, FileChartLine, FilePlus, Trash2, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
+  ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
@@ -330,6 +330,38 @@ export const usePaletteItems = () => {
         keywords: toKeywords("view, bounds, range, limits, window, axis, xmin, xmax, ymin, ymax, zoom, scale, viewport, boundaries, change, set, configure"),
         perform: () => openDialog("change-graph-bound"),
         icon: <ChartArea />,
+      },
+
+      {
+        id: "increase-step-size",
+        label: "Increase Step Size",
+        keywords: toKeywords("step, size, stepsize, increase, bigger, larger, coarser, raise, up, movement, cursor, distance"),
+        perform: run("increase-step-size"),
+        icon: <StepForward />,
+      },
+
+      {
+        id: "decrease-step-size",
+        label: "Decrease Step Size",
+        keywords: toKeywords("step, size, stepsize, decrease, smaller, finer, lower, down, movement, cursor, distance, precision"),
+        perform: run("decrease-step-size"),
+        icon: <StepBack />,
+      },
+
+      {
+        id: "increase-speed",
+        label: "Increase Speed",
+        keywords: toKeywords("speed, faster, quicker, increase, raise, up, playback, play, movement, tempo, velocity"),
+        perform: run("increase-speed"),
+        icon: <FastForward />,
+      },
+
+      {
+        id: "decrease-speed",
+        label: "Decrease Speed",
+        keywords: toKeywords("speed, slower, decrease, lower, down, playback, play, movement, tempo, velocity"),
+        perform: run("decrease-speed"),
+        icon: <Rewind />,
       },
 
       {

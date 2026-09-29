@@ -57,6 +57,13 @@ export const HOTKEYS = {
 
   'cursor-left': { combos: [['ArrowLeft'], ['J']], scope: 'chart', shiftModifies: true },
   'cursor-right': { combos: [['ArrowRight'], ['L']], scope: 'chart', shiftModifies: true },
+  // Arrow keys, so chart focus only: elsewhere they scroll the page and a screen
+  // reader reads with them.
+  'increase-step-size': { combos: [['ArrowUp']], scope: 'chart' },
+  'decrease-step-size': { combos: [['ArrowDown']], scope: 'chart' },
+  'increase-speed': { combos: [['Shift', 'ArrowUp']], scope: 'chart' },
+  'decrease-speed': { combos: [['Shift', 'ArrowDown']], scope: 'chart' },
+
   'cursor-start': { combos: [['Home']], scope: 'chart' },
   'cursor-end': { combos: [['End']], scope: 'chart' },
 
