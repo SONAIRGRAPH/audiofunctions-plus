@@ -299,6 +299,17 @@ export function useCommands() {
       openDialog,
     ),
 
+    // Straight to a landmark with its default label, shortcut and shape.
+    'add-landmark-quick': () => addLandmarkAtCursorPosition(
+      functionDefinitions,
+      cursorCoords,
+      setFunctionDefinitions,
+      announce,
+      showInfoToast,
+      openDialog,
+      { openEditor: false },
+    ),
+
     'functions-menu': () => openDialog("edit-function"),
     'movement-adjustments': () => openDialog("movement-adjustments"),
     'help': () => openDialog("welcome"),

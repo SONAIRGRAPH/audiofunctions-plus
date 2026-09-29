@@ -1,6 +1,6 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
-  ChartArea, FileChartLine, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
+  ChartArea, FileChartLine, FilePlus, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
@@ -203,7 +203,9 @@ export const usePaletteItems = () => {
       // Individual landmark actions (jump/navigate)
       ...landmarks.map((landmark, index) => ({
         id: `jump-to-landmark-${index}`,
-        label: `${landmark.label || `Landmark ${index + 1}`} (${landmark.x.toFixed(2)}, ${landmark.y.toFixed(2)})`,
+        // Via Number(), so a malformed coordinate shows as NaN instead of taking the
+        // whole app down -- this list is built on every render.
+        label: `${landmark.label || `Landmark ${index + 1}`} (${Number(landmark.x).toFixed(2)}, ${Number(landmark.y).toFixed(2)})`,
         ...(landmark.shortcut ? landmarkHotkey(landmark.shortcut) : null),
         keywords: toKeywords(`landmark, jump, goto, navigate, ${landmark.label || ''}, ${landmark.shortcut ? `l${landmark.shortcut}` : ''}`),
         perform: run("jump-to-landmark-object", landmark),
@@ -250,11 +252,19 @@ export const usePaletteItems = () => {
       }] : []),
 
       {
-        id: "add-landmark",
+        id: "add-landmark-quick",
         label: "Add Landmark at Cursor",
-        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor"),
-        perform: run("add-landmark"),
+        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, quick, default"),
+        perform: run("add-landmark-quick"),
         icon: <Plus />,
+      },
+
+      {
+        id: "add-landmark",
+        label: "Add and Edit Landmark at Cursor",
+        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, edit, label, settings, dialog"),
+        perform: run("add-landmark"),
+        icon: <FilePlus />,
       },
 
     ],

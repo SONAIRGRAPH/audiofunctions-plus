@@ -161,13 +161,17 @@ export function handleExistingLandmarkFound(landmark, landmarkIndex, functionInd
 }
 
 /**
- * Add landmark at cursor position with full validation and dialog opening
+ * Add landmark at cursor position with full validation
  * @param {Array} functionDefinitions - Function definitions array
  * @param {Array} cursorCoords - Cursor coordinates array
  * @param {Function} setFunctionDefinitions - Function definitions setter
  * @param {Function} announce - Announcement function
  * @param {Function} showInfoToast - Info toast function
  * @param {Function} openDialog - Dialog opening function
+ * @param {Object} [options]
+ * @param {boolean} [options.openEditor=true] - Open the edit dialog afterwards. With
+ *   false the landmark is created with its default label, shortcut and shape, and an
+ *   existing landmark at the position is only reported.
  * @returns {Object} Result object
  */
 export function addLandmarkAtCursorPosition(
@@ -176,7 +180,8 @@ export function addLandmarkAtCursorPosition(
   setFunctionDefinitions,
   announce,
   showInfoToast,
-  openDialog
+  openDialog,
+  { openEditor = true } = {}
 ) {
   // Validate active function and cursor
   const validation = validateActiveFunction(functionDefinitions, cursorCoords);
@@ -194,6 +199,13 @@ export function addLandmarkAtCursorPosition(
   const existingResult = findLandmarkAtPosition(currentLandmarks, x, y);
 
   if (existingResult.found) {
+    if (!openEditor) {
+      const message = `Landmark already exists at x = ${x.toFixed(2)}, y = ${y.toFixed(2)}`;
+      announce(message);
+      showInfoToast(message, 2000);
+      return { success: false, message };
+    }
+
     handleExistingLandmarkFound(
       existingResult.landmark,
       existingResult.index,
@@ -218,10 +230,19 @@ export function addLandmarkAtCursorPosition(
   // Update function definitions
   setFunctionDefinitions(result.definitions);
 
-  // Open new landmark in edit dialog
   const updatedLandmarks = getLandmarksN(result.definitions, activeFunctionIndex);
   const newLandmarkIndex = updatedLandmarks.length - 1;
   const newLandmark = updatedLandmarks[newLandmarkIndex];
+
+  // Created with its defaults -- report it instead of opening the editor
+  if (!openEditor) {
+    const message = `${newLandmark.label} created at x = ${x.toFixed(2)}, y = ${y.toFixed(2)}, shortcut ${result.shortcut}`;
+    announce(message);
+    showInfoToast(message, 2000);
+    return { success: true, message };
+  }
+
+  // Open new landmark in edit dialog
 
   // Create backup of functionDefinitions BEFORE the landmark was added
   const backupBeforeAdd = JSON.parse(JSON.stringify(functionDefinitions));
@@ -241,45 +262,3 @@ export function addLandmarkAtCursorPosition(
   return { success: true, message: "Landmark created and dialog opened" };
 }
 
-/**
- * Calculate Y value from X for a given function definition
- * Uses math.js parsing and evaluation
- * @param {number} xValue - X coordinate
- * @param {string|Array} functionDef - Function definition
- * @param {string} functionType - Function type ("function" or "piecewise_function")
- * @returns {Object} Result with {success, yValue, error}
- */
-export function calculateYFromX(xValue, functionDef, functionType) {
-  try {
-    // This is a simplified version - in practice you'd need to import
-    // the math parsing logic from parse.js and GraphView.jsx
-    if (functionType === "function" && typeof functionDef === "string") {
-      // For regular functions, this would use the same parsing logic as GraphView
-      // This is a placeholder - you'd need to implement the full math.js evaluation
-      return {
-        success: true,
-        yValue: 0, // Placeholder
-        error: null
-      };
-    } else if (functionType === "piecewise_function" && Array.isArray(functionDef)) {
-      // For piecewise functions, this would use the piecewise parsing logic
-      return {
-        success: true,
-        yValue: 0, // Placeholder
-        error: null
-      };
-    }
-
-    return {
-      success: false,
-      yValue: NaN,
-      error: "Invalid function definition"
-    };
-  } catch (error) {
-    return {
-      success: false,
-      yValue: NaN,
-      error: error.message
-    };
-  }
-}

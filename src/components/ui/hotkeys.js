@@ -37,9 +37,9 @@ export const HOTKEYS = {
   'show-view-bounds': { combos: [['V']], scope: 'global' },
   'reset-view': { combos: [['R']], scope: 'global' },
   'functions-menu': { combos: [['F']], scope: 'global' },
-  'movement-adjustments': { combos: [['M']], scope: 'global' },
   'help': { combos: [['F1']], scope: 'global' },
-  'add-landmark': { combos: [['Mod', 'B']], scope: 'global' },
+  'add-landmark-quick': { combos: [['M']], scope: 'global' },
+  'add-landmark': { combos: [['Mod', 'M']], scope: 'global' },
   'center-at-cursor': { combos: [['Mod', 'Z']], scope: 'global' },
 
   // --- chart focus ----------------------------------------------------------

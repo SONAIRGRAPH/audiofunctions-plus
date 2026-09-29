@@ -177,7 +177,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, isAudioEnabled, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -702,6 +702,21 @@ const GraphView = () => {
       }
     };
     setUpdateCursor(() => updateCursors);
+
+    // The same evaluation the cursor above uses, published so that dialogs reading a
+    // point off the curve get the value that is actually drawn -- see GraphContext.
+    setEvaluateFunctionAt(() => (functionId, x) => {
+      const parsedExpr = parsedExpressionsRef.current.get(functionId);
+      if (!boardRef.current || !parsedExpr) return undefined;
+
+      try {
+        const y = boardRef.current.jc.snippet(parsedExpr, true, "x", true)(x);
+        return typeof y === 'number' && !isNaN(y) && isFinite(y) ? y : null;
+      } catch (err) {
+        console.warn(`Could not evaluate function ${functionId} at x=${x}:`, err);
+        return null;
+      }
+    });
 
     // Update cursors to their preserved positions after recreation
     if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
