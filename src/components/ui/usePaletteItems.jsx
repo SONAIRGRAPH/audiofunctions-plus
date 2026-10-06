@@ -54,7 +54,7 @@ const withHotkeys = (items) => items.map((item) => ({
  * changes that do not alter what the user sees.
  */
 export const usePaletteItems = () => {
-  const { functionDefinitions, graphSettings, focusChart } = useGraphContext();
+  const { functionDefinitions, graphSettings, focusChart, stepSize, PlayFunction } = useGraphContext();
   const { isAudioEnabled } = useMixer();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
@@ -337,6 +337,7 @@ export const usePaletteItems = () => {
       {
         id: "increase-step-size",
         label: "Increase Step Size",
+        hint: `current: ${stepSize}`,
         keywords: toKeywords("step, size, stepsize, increase, bigger, larger, coarser, raise, up, movement, cursor, distance"),
         perform: run("increase-step-size"),
         icon: <StepForward />,
@@ -345,6 +346,7 @@ export const usePaletteItems = () => {
       {
         id: "decrease-step-size",
         label: "Decrease Step Size",
+        hint: `current: ${stepSize}`,
         keywords: toKeywords("step, size, stepsize, decrease, smaller, finer, lower, down, movement, cursor, distance, precision"),
         perform: run("decrease-step-size"),
         icon: <StepBack />,
@@ -353,6 +355,7 @@ export const usePaletteItems = () => {
       {
         id: "increase-speed",
         label: "Increase Speed",
+        hint: `current: ${PlayFunction.speed}`,
         keywords: toKeywords("speed, faster, quicker, increase, raise, up, playback, play, movement, tempo, velocity"),
         perform: run("increase-speed"),
         icon: <FastForward />,
@@ -361,6 +364,7 @@ export const usePaletteItems = () => {
       {
         id: "decrease-speed",
         label: "Decrease Speed",
+        hint: `current: ${PlayFunction.speed}`,
         keywords: toKeywords("speed, slower, decrease, lower, down, playback, play, movement, tempo, velocity"),
         perform: run("decrease-speed"),
         icon: <Rewind />,

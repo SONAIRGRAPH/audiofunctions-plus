@@ -8,6 +8,8 @@ import landmarkEarconManager from "../../../utils/landmarkEarcons";
 
 // A landmark stores a plain number; anything else means "no value here".
 const toFiniteNumber = (value) => {
+  // Number('') and Number(null) are 0, which would pass an empty field off as x = 0
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -192,9 +194,8 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
 
     const numValue = parseFloat(finalValue);
 
-    // Leaving the field without having changed x must not touch y: recalculating it
-    // would replace the value the chart computed with this dialog's own evaluation,
-    // which runs on a different math engine.
+    // Leaving the field without having changed x must not touch y: stored landmarks are
+    // rounded to two decimals, and recalculating would swap that for the unrounded value.
     const unchanged = toFiniteNumber(localLandmark.x) === numValue;
     const newY = unchanged ? localLandmark.y : calculateYFromX(numValue);
 
