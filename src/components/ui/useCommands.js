@@ -384,7 +384,9 @@ export function useCommands() {
       { graphBounds, stepSize },
     ),
 
-    'functions-menu': () => openDialog("edit-function"),
+    'functions-menu': () => {
+          if (graphSettings?.restrictionMode !== "full-restriction") openDialog("edit-function");
+        },
     'movement-adjustments': () => openDialog("movement-adjustments"),
     'help': () => openDialog("welcome"),
 
