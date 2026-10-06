@@ -23,13 +23,14 @@ export function DialogProvider({ children }) {
   const openDialog = (type, props = {}) => setDialog({ type, props });
   const closeDialog = () => setDialog({ type: null, props: {} });
 
+  const isDialogOpen = dialog.type !== null;
   // Check if edit function dialog is open
   const isEditFunctionDialogOpen = dialog.type === "edit-function";
   // Check if edit landmark dialog is open
   const isEditLandmarkDialogOpen = dialog.type === "edit-landmark";
 
   return (
-    <DialogContext.Provider value={{ openDialog, closeDialog, isEditFunctionDialogOpen, isEditLandmarkDialogOpen }}>
+    <DialogContext.Provider value={{ openDialog, closeDialog, isDialogOpen, isEditFunctionDialogOpen, isEditLandmarkDialogOpen }}>
       {children}
 
       <EditFunctionDialog

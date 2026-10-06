@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useGraphContext } from "../../context/GraphContext";
 import { getActiveFunctions } from "../../utils/graphObjectOperations";
 import audioSampleManager from "../../utils/audioSamples";
+import { ensureToneStarted } from "../../utils/toneAudio";
+import { cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
 import { useCommandPaletteActions } from "./command-palette";
 import { matchesShortcut } from "./matchesShortcut";
 import { HOTKEYS, bindableCombos } from "./hotkeys";
@@ -90,7 +92,6 @@ export default function KeyboardHandler({ items }) {
         setExplorationMode,
         PlayFunction,
         mouseTimeoutRef,
-        isAudioEnabled,
         setIsShiftPressed,
     } = useGraphContext();
 
@@ -159,7 +160,8 @@ export default function KeyboardHandler({ items }) {
             ? pointsOfInterest.filter(e => (CurrentX < e) && (e < NewX))
             : pointsOfInterest.filter(e => (NewX < e) && (e < CurrentX));
 
-        if (passed.length > 0 && isAudioEnabled) {
+        // No mute check here: the mixer silences its bus when audio is off.
+        if (passed.length > 0) {
             try {
                 await audioSampleManager.playSample("notification", { volume: -15 });
             } catch (error) {
@@ -194,6 +196,10 @@ export default function KeyboardHandler({ items }) {
 
     useEffect(() => {
         const handleKeyDown = (event) => {
+            // Any key is activity: drop a pending bounds announcement. A pan or zoom
+            // triggered by this very key schedules a fresh one.
+            cancelBoundsAnnouncement();
+
             // Respect a handler that already claimed this combination.
             if (event.defaultPrevented) return;
 
@@ -201,6 +207,10 @@ export default function KeyboardHandler({ items }) {
 
             const scope = currentScope();
             if (scope === null) return;
+
+            // A keydown is a user gesture, so the browser lets the audio context start
+            // here. Not awaited: preventDefault() below has to run synchronously.
+            ensureToneStarted().catch((error) => console.warn("Could not start audio:", error));
 
             pressedKeys.current.add(event.key.toLowerCase());
 

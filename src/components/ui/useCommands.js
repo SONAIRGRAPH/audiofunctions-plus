@@ -1,7 +1,11 @@
+import { useRef } from "react";
 import { useGraphContext } from "../../context/GraphContext";
 import { useAnnouncement } from "../../context/AnnouncementContext";
 import { useInfoToast } from "../../context/InfoToastContext";
 import { useDialog } from "../../context/DialogContext";
+import { useMixer } from "../../context/MixerContext";
+import audioSampleManager from "../../utils/audioSamples";
+import { scheduleBoundsAnnouncement } from "../../utils/boundsAnnouncement";
 import {
   getActiveFunctions,
   getFunctionNameN,
@@ -17,15 +21,39 @@ import {
 } from "../../utils/landmarkUtils";
 import { nextStepSize, nextSpeed } from "../../utils/movementSettings";
 
+const playNavigationEarcon = (sampleName) => {
+  try {
+    audioSampleManager.playSample(sampleName, { volume: -15 });
+  } catch (error) {
+    console.warn(`Failed to play ${sampleName} earcon:`, error);
+  }
+};
+
+/**
+ * The bounds as of the latest render. The bounds announcement fires once the user has
+ * paused, long after the pan or zoom that scheduled it, and has to read the bounds
+ * that change produced rather than the ones from when it was scheduled.
+ */
+const useLatestGraphBounds = () => {
+  const { graphBounds } = useGraphContext();
+  const graphBoundsRef = useRef(graphBounds);
+  graphBoundsRef.current = graphBounds;
+  return graphBoundsRef;
+};
+
 /** Zooms the view around its centre, optionally along one axis only. */
 export const useZoomBoard = () => {
   const { setGraphBounds } = useGraphContext();
+  const { announce } = useAnnouncement();
+  const graphBoundsRef = useLatestGraphBounds();
 
   return (out, xOnly = false, yOnly = false) => {
     const scaleFactor = { x: 0.9, y: 0.9 };
     if (out) { scaleFactor.x = 1.1; scaleFactor.y = 1.1; }
     if (xOnly) scaleFactor.y = 1; //only x axis zoom
     if (yOnly) scaleFactor.x = 1; //only y axis zoom
+
+    playNavigationEarcon(out ? "zoomout" : "zoomin");
 
     setGraphBounds(prevBounds => {
       const centerX = (prevBounds.xMin + prevBounds.xMax) / 2;
@@ -40,6 +68,8 @@ export const useZoomBoard = () => {
         yMax: centerY + halfWidthY,
       };
     });
+
+    scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
   };
 };
 
@@ -91,7 +121,6 @@ export const useCenterAtCursor = () => {
  */
 export function useCommands() {
   const {
-    setIsAudioEnabled,
     PlayFunction,
     setPlayFunction,
     setGraphBounds,
@@ -108,9 +137,11 @@ export function useCommands() {
   const { announce } = useAnnouncement();
   const { showInfoToast, showLandmarkToast } = useInfoToast();
   const { openDialog } = useDialog();
+  const { toggleAudio } = useMixer();
 
   const zoomBoard = useZoomBoard();
   const centerAtCursor = useCenterAtCursor();
+  const graphBoundsRef = useLatestGraphBounds();
 
   // --- helpers --------------------------------------------------------------
 
@@ -126,6 +157,9 @@ export function useCommands() {
     setGraphBounds(prev => axis === "x"
       ? { ...prev, xMin: prev.xMin + step, xMax: prev.xMax + step }
       : { ...prev, yMin: prev.yMin + step, yMax: prev.yMax + step });
+
+    playNavigationEarcon("wasd_keypress");
+    scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
   };
 
   /** Activate exactly one function, by index. */
@@ -288,7 +322,7 @@ export function useCommands() {
   // --- the commands ---------------------------------------------------------
 
   return {
-    'toggle-audio': () => setIsAudioEnabled(prev => !prev),
+    'toggle-audio': toggleAudio,
     'play-function': () => setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })),
     // GraphView renders "play_space" differently from "play".
     'play-function-space': () => setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active })),
@@ -326,6 +360,7 @@ export function useCommands() {
       announce,
       showInfoToast,
       openDialog,
+      { graphBounds, stepSize },
     ),
 
     // Straight to a landmark with its default label, shortcut and shape.
@@ -336,7 +371,7 @@ export function useCommands() {
       announce,
       showInfoToast,
       openDialog,
-      { openEditor: false },
+      { openEditor: false, graphBounds, stepSize },
     ),
 
     // Only removes something when the cursor stands on a landmark.
@@ -346,6 +381,7 @@ export function useCommands() {
       setFunctionDefinitions,
       announce,
       showInfoToast,
+      { graphBounds, stepSize },
     ),
 
     'functions-menu': () => openDialog("edit-function"),

@@ -5,7 +5,7 @@
  * `usePaletteItems` the label, icon and place in the palette, under the same id:
  *
  *   hotkeys.js       'toggle-audio': { combos: [['P']], scope: 'global' }
- *   useCommands      'toggle-audio': () => setIsAudioEnabled((on) => !on)
+ *   useCommands      'toggle-audio': toggleAudio
  *   usePaletteItems  { id: 'toggle-audio', label: 'Enable Sound', … }
  *
  * `KeyboardHandler` binds these combinations, the palette displays `combos[0]`.

@@ -1,4 +1,3 @@
-import * as Tone from "tone";
 import audioSampleManager from "./audioSamples";
 
 /**
@@ -18,14 +17,7 @@ class LandmarkEarconManager {
    */
   async initialize() {
     if (this.isInitialized) return;
-
-    try {
-      await Tone.start();
-      this.isInitialized = true;
-      // console.log("LandmarkEarconManager initialized");
-    } catch (error) {
-      console.error("Failed to initialize LandmarkEarconManager:", error);
-    }
+    this.isInitialized = true;
   }
 
   // No synth creation needed when using samples
@@ -61,10 +53,9 @@ class LandmarkEarconManager {
     }
 
     try {
-      // Use the same play logic as other earcons (e.g., no_y.mp3)
-      // Only volume/playbackRate supported; pan is ignored by the sample manager currently
       audioSampleManager.playSample(sampleName, {
-        volume: options.volume !== undefined ? options.volume : -12
+        volume: options.volume !== undefined ? options.volume : -12,
+        pan: options.pan
       });
     } catch (error) {
       console.error(`Error playing landmark sample for shape ${shape}:`, error);

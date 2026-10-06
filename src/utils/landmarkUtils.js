@@ -1,8 +1,5 @@
 import { getActiveFunctions, getLandmarksN, addLandmarkWithValidation, removeLandmarkWithValidation } from './graphObjectOperations';
-
-// Same tolerance findLandmarkAtPosition uses, and wide enough for the two decimals the
-// cursor coordinates are rounded to.
-const LANDMARK_X_TOLERANCE = 0.01;
+import { isNearLandmark, landmarkWindows } from './landmarkGeometry';
 
 /**
  * Calculate screen position from graph coordinates
@@ -123,16 +120,21 @@ export function validateActiveFunction(functionDefinitions, cursorCoords) {
 }
 
 /**
- * Find landmark at position with tolerance
+ * Find landmark at position with a zoom-aware tolerance.
  * @param {Array} landmarks - Landmarks array
  * @param {number} x - X coordinate
  * @param {number} y - Y coordinate
- * @param {number} tolerance - Position tolerance (default: 0.01)
+ * @param {Object} [bounds] - Graph bounds; when omitted a tiny absolute floor is used
+ * @param {number} [stepSize=0] - Navigation step size (widens the X window)
  * @returns {Object} Result with found landmark index or -1
  */
-export function findLandmarkAtPosition(landmarks, x, y, tolerance = 0.01) {
+export function findLandmarkAtPosition(landmarks, x, y, bounds = null, stepSize = 0) {
+  const windows = bounds
+    ? landmarkWindows(bounds, stepSize)
+    : { matchX: 0.01, matchY: 0.01 };
+
   const existingLandmarkIndex = landmarks.findIndex(landmark =>
-    Math.abs(landmark.x - x) < tolerance && Math.abs(landmark.y - y) < tolerance
+    isNearLandmark(landmark, x, y, windows)
   );
 
   return {
@@ -175,6 +177,8 @@ export function handleExistingLandmarkFound(landmark, landmarkIndex, functionInd
  * @param {boolean} [options.openEditor=true] - Open the edit dialog afterwards. With
  *   false the landmark is created with its default label, shortcut and shape, and an
  *   existing landmark at the position is only reported.
+ * @param {Object} [options.graphBounds] - Visible bounds; scale the "same spot" window
+ * @param {number} [options.stepSize=0] - Navigation step size; widens that window in x
  * @returns {Object} Result object
  */
 export function addLandmarkAtCursorPosition(
@@ -184,7 +188,7 @@ export function addLandmarkAtCursorPosition(
   announce,
   showInfoToast,
   openDialog,
-  { openEditor = true } = {}
+  { openEditor = true, graphBounds = null, stepSize = 0 } = {}
 ) {
   // Validate active function and cursor
   const validation = validateActiveFunction(functionDefinitions, cursorCoords);
@@ -193,13 +197,15 @@ export function addLandmarkAtCursorPosition(
     return { success: false, message: validation.message };
   }
 
-  const { activeFunction, activeFunctionIndex, cursorCoord } = validation;
-  const x = parseFloat(cursorCoord.x);
-  const y = parseFloat(cursorCoord.y);
+  const { activeFunctionIndex, cursorCoord } = validation;
+  // Cursor coordinates carry full precision for border detection; landmarks are
+  // authored data and stay at the two decimals users see and export.
+  const x = Number(parseFloat(cursorCoord.x).toFixed(2));
+  const y = Number(parseFloat(cursorCoord.y).toFixed(2));
 
   // Check for existing landmark at position
   const currentLandmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
-  const existingResult = findLandmarkAtPosition(currentLandmarks, x, y);
+  const existingResult = findLandmarkAtPosition(currentLandmarks, x, y, graphBounds, stepSize);
 
   if (existingResult.found) {
     if (!openEditor) {
@@ -220,7 +226,10 @@ export function addLandmarkAtCursorPosition(
   }
 
   // Create new landmark
-  const result = addLandmarkWithValidation(functionDefinitions, activeFunctionIndex, x, y);
+  const result = addLandmarkWithValidation(functionDefinitions, activeFunctionIndex, x, y, {
+    bounds: graphBounds,
+    stepSize
+  });
 
   if (!result.success) {
     announce(result.message);
@@ -268,14 +277,18 @@ export function addLandmarkAtCursorPosition(
 /**
  * Remove the landmark the cursor is standing on
  *
- * Matched by x alone: the cursor always sits on the curve, and its coordinates are
- * rounded to two decimals, so a y comparison would miss on steep sections.
+ * Matched by x alone: the cursor always sits on the curve, so a y comparison only adds
+ * misses on steep sections. The x window is the same zoom-aware one used when creating
+ * a landmark, so whatever counts as "already here" there can be deleted here.
  *
  * @param {Array} functionDefinitions - Function definitions array
  * @param {Array} cursorCoords - Cursor coordinates array
  * @param {Function} setFunctionDefinitions - Function definitions setter
  * @param {Function} announce - Announcement function
  * @param {Function} showInfoToast - Info toast function
+ * @param {Object} [options]
+ * @param {Object} [options.graphBounds] - Visible bounds; scale the match window
+ * @param {number} [options.stepSize=0] - Navigation step size; widens that window
  * @returns {Object} Result object
  */
 export function removeLandmarkAtCursorPosition(
@@ -283,7 +296,8 @@ export function removeLandmarkAtCursorPosition(
   cursorCoords,
   setFunctionDefinitions,
   announce,
-  showInfoToast
+  showInfoToast,
+  { graphBounds = null, stepSize = 0 } = {}
 ) {
   const validation = validateActiveFunction(functionDefinitions, cursorCoords);
   if (!validation.valid) {
@@ -293,9 +307,18 @@ export function removeLandmarkAtCursorPosition(
 
   const { activeFunctionIndex, cursorCoord } = validation;
   const x = parseFloat(cursorCoord.x);
+  // Without bounds, the same floor findLandmarkAtPosition falls back to
+  const matchX = graphBounds ? landmarkWindows(graphBounds, stepSize).matchX : 0.01;
 
+  // The nearest landmark inside the window, in case a wide window holds more than one
   const landmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
-  const landmarkIndex = landmarks.findIndex(landmark => Math.abs(landmark.x - x) < LANDMARK_X_TOLERANCE);
+  let landmarkIndex = -1;
+  landmarks.forEach((landmark, index) => {
+    const distance = Math.abs(landmark.x - x);
+    if (distance < matchX && (landmarkIndex === -1 || distance < Math.abs(landmarks[landmarkIndex].x - x))) {
+      landmarkIndex = index;
+    }
+  });
 
   if (landmarkIndex === -1) {
     const message = `No landmark at x = ${x.toFixed(2)}`;

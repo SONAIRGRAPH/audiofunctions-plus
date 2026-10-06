@@ -2,6 +2,7 @@ import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, Circl
   SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
+import { useMixer } from "../../context/MixerContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
 import { THEMES, setTheme } from "../../utils/theme";
@@ -53,7 +54,8 @@ const withHotkeys = (items) => items.map((item) => ({
  * changes that do not alter what the user sees.
  */
 export const usePaletteItems = () => {
-  const { isAudioEnabled, functionDefinitions, graphSettings, focusChart } = useGraphContext();
+  const { functionDefinitions, graphSettings, focusChart } = useGraphContext();
+  const { isAudioEnabled } = useMixer();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
   const commands = useCommands();
