@@ -1,613 +1,274 @@
 import { useEffect, useRef } from "react";
 import { useGraphContext } from "../../context/GraphContext";
-import { getActiveFunctions, getFunctionNameN, findLandmarkByShortcut, getLandmarksN } from "../../utils/graphObjectOperations";
-import { addLandmarkAtCursorPosition, jumpToLandmarkWithToast, getScreenPosition } from "../../utils/landmarkUtils";
+import { getActiveFunctions } from "../../utils/graphObjectOperations";
 import audioSampleManager from "../../utils/audioSamples";
 import { ensureToneStarted } from "../../utils/toneAudio";
-import { useAnnouncement } from '../../context/AnnouncementContext';
-import { useInfoToast } from '../../context/InfoToastContext';
-import { useDialog } from "../../context/DialogContext";
-import { scheduleBoundsAnnouncement, cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
+import { cancelBoundsAnnouncement } from "../../utils/boundsAnnouncement";
+import { useCommandPaletteActions } from "./command-palette";
+import { matchesShortcut } from "./matchesShortcut";
+import { HOTKEYS, bindableCombos } from "./hotkeys";
+import { useCommands, useZoomBoard } from "./useCommands";
 
-const playNavigationEarcon = (sampleName) => {
-  try {
-    audioSampleManager.playSample(sampleName, { volume: -15 });
-  } catch (error) {
-    console.warn(`Failed to play ${sampleName} earcon:`, error);
-  }
-};
+/** Elements that swallow single-letter shortcuts because the user is typing into them. */
+function isTypingTarget(element) {
+    if (!element) return false;
+    if (element.isContentEditable) return true;
+    return ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+}
 
-// Export the ZoomBoard function so it can be used in other components
-export const useZoomBoard = () => {
-  const { setGraphBounds, graphBounds } = useGraphContext();
-  const { announce } = useAnnouncement();
-  const graphBoundsRef = useRef(graphBounds);
-  graphBoundsRef.current = graphBounds;
+/**
+ * Where the keypress applies:
+ *
+ *   'chart'  the chart has focus -- everything is allowed
+ *   'global' somewhere else on the page -- only `scope: 'global'` commands
+ *   null     a text field, an open dialog or the open palette owns the keyboard
+ *
+ * Two selectors: the palette is a native `<dialog>`, the other dialogs come from
+ * Headless UI and render `div[role="dialog"]`. Both are in the DOM only while open.
+ */
+function currentScope() {
+    if (document.querySelector('dialog[open], [role="dialog"]')) return null;
 
-  return (out, xOnly = false, yOnly = false) => {
-    const scaleFactor = {x: 0.9, y: 0.9};
-    if (out) { scaleFactor.x = 1.1; scaleFactor.y = 1.1; }
-    if (xOnly) scaleFactor.y = 1; //only x axis zoom
-    if (yOnly) scaleFactor.x = 1; //only y axis zoom
+    const active = document.activeElement;
+    if (active?.getAttribute("role") === "application") return "chart";
+    if (isTypingTarget(active)) return null;
+    return "global";
+}
 
-    playNavigationEarcon(out ? "zoomout" : "zoomin");
+const allowsScope = (required, scope) => (required === "chart" ? scope === "chart" : scope !== null);
 
-    setGraphBounds(prevBounds => {
-      const centerX = (prevBounds.xMin + prevBounds.xMax) / 2;
-      const centerY = (prevBounds.yMin + prevBounds.yMax) / 2;
-      const halfWidthX = (prevBounds.xMax - prevBounds.xMin) / 2 * scaleFactor.x;
-      const halfWidthY = (prevBounds.yMax - prevBounds.yMin) / 2 * scaleFactor.y;
+/** Every item of the palette tree, parents included. */
+function flattenItems(items, out = []) {
+    for (const item of items) {
+        out.push(item);
+        if (Array.isArray(item.children)) flattenItems(item.children, out);
+    }
+    return out;
+}
 
-      return {
-        xMin: centerX - halfWidthX,
-        xMax: centerX + halfWidthX,
-        yMin: centerY - halfWidthY,
-        yMax: centerY + halfWidthY,
-      };
-    });
+/**
+ * Warns about assignments that cannot work -- a key in the table without an action, or
+ * one combination claimed twice. Development only; in production the first match wins.
+ */
+function warnAboutConflicts(actions, items) {
+    const seen = new Map();
+    const claim = (combo, owner) => {
+        const signature = combo.join("+").toLowerCase();
+        const previous = seen.get(signature);
+        if (previous) console.warn(`Hotkey ${signature} is claimed by both "${previous}" and "${owner}"`);
+        else seen.set(signature, owner);
+    };
 
-    scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
-  };
-};
-
-// Export the CenterAtCursor function so it can be used in other components
-export const useCenterAtCursor = () => {
-  const { setGraphBounds, cursorCoords, graphBounds } = useGraphContext();
-  const { announce } = useAnnouncement();
-  const { showInfoToast } = useInfoToast();
-
-  return () => {
-    if (!cursorCoords || cursorCoords.length === 0) {
-      announce("No cursor position available");
-      return;
+    for (const [id, entry] of Object.entries(HOTKEYS)) {
+        if (!actions[id]) console.warn(`Hotkey "${id}" has no action in useCommands`);
+        entry.combos.forEach((combo) => claim(combo, id));
     }
 
-    // Use the first cursor coordinate (primary cursor position)
-    const currentCursor = cursorCoords[0];
-    const cursorX = Number(currentCursor.x);
-    const cursorY = Number(currentCursor.y);
+    for (const item of flattenItems(items)) {
+        if (!item.shortcut || HOTKEYS[item.id]) continue;
+        claim(item.shortcut, item.id);
+    }
+}
 
-    // Get current view dimensions
-    const { xMin, xMax, yMin, yMax } = graphBounds;
-    const viewWidth = xMax - xMin;
-    const viewHeight = yMax - yMin;
-
-    // Calculate the current center of the view
-    const currentCenterX = (xMin + xMax) / 2;
-    const currentCenterY = (yMin + yMax) / 2;
-
-    // Calculate the offset needed to center the cursor
-    const offsetX = cursorX - currentCenterX;
-    const offsetY = cursorY - currentCenterY;
-
-    // Calculate new bounds by shifting the current bounds
-    const newXMin = xMin + offsetX;
-    const newXMax = xMax + offsetX;
-    const newYMin = yMin + offsetY;
-    const newYMax = yMax + offsetY;
-
-    // Set the new bounds
-    setGraphBounds({
-      xMin: newXMin,
-      xMax: newXMax,
-      yMin: newYMin,
-      yMax: newYMax
-    });
-
-    const roundedX = Number(cursorX).toFixed(2);
-    const roundedY = Number(cursorY).toFixed(2);
-    announce(`View centered at cursor position: x = ${roundedX}, y = ${roundedY}`);
-    showInfoToast(`Centered at (${roundedX}, ${roundedY})`, 1500);
-  };
-};
-
-export default function KeyboardHandler() {
+/**
+ * Turns key presses into commands.
+ *
+ * Two sources, in this order:
+ *
+ *  1. `hotkeys.js` -- the assignment table, paired by id with `useCommands`.
+ *  2. Palette items carrying a `shortcut` of their own, bound globally. This covers the
+ *     entries whose key depends on the graph: landmarks and the function digits.
+ *
+ * @param {object} props
+ * @param {Array} props.items the palette item tree from `usePaletteItems`
+ */
+export default function KeyboardHandler({ items }) {
     const {
         setPlayFunction,
-        setGraphBounds,
-        inputRefs,
-        graphSettings,
-        setGraphSettings,
         cursorCoords,
         updateCursor,
         stepSize,
         functionDefinitions,
-        setFunctionDefinitions,
         setExplorationMode,
         PlayFunction,
         mouseTimeoutRef,
         setIsShiftPressed,
-        graphBounds
     } = useGraphContext();
 
-    const { announce } = useAnnouncement();
-    const { showInfoToast, showLandmarkToast } = useInfoToast();
-    const { openDialog } = useDialog();
+    const commands = useCommands();
+    const zoomBoard = useZoomBoard();
+    const palette = useCommandPaletteActions();
 
     const pressedKeys = useRef(new Set());
     const lastKeyDownTime = useRef(null);
-    const graphBoundsRef = useRef(graphBounds);
-    graphBoundsRef.current = graphBounds;
     const HOLD_THRESHOLD = 1000;
     const KEYPRESS_THRESHOLD = 15;
 
-    // Track if normal navigation has happened to reset boundary wrapping
-    const normalNavigationHappenedRef = useRef(false);
+    /**
+     * Cursor movement. Holding the key repeats the step, Shift turns it into a
+     * continuous glide that `handleKeyUp` stops again.
+     */
+    const moveCursor = async (direction, event) => {
+        // If batch sonification is active, stop it and keep cursor at current position
+        if (PlayFunction.active && (PlayFunction.source === "play" || PlayFunction.source === "play_space")) {
+            setPlayFunction(prev => ({ ...prev, active: false }));
+            setExplorationMode("none");
+            return;
+        }
 
-    // Use the exported zoom function
-    const ZoomBoard = useZoomBoard();
+        // First, stop any active smooth movement
+        if (PlayFunction.active && PlayFunction.source === "keyboard") {
+            setPlayFunction(prev => ({ ...prev, active: false }));
+        }
 
-    // Use the exported center at cursor function
-    const centerAtCursor = useCenterAtCursor();
+        // Clear any mouse exploration timeout
+        if (mouseTimeoutRef.current) {
+            clearTimeout(mouseTimeoutRef.current);
+            mouseTimeoutRef.current = null;
+        }
 
-    // Function to get sorted navigation points (current bounds + landmarks within view)
-    const getSortedNavigationPoints = () => {
-        const activeFunctions = getActiveFunctions(functionDefinitions);
-        if (activeFunctions.length === 0) return [];
+        if (event.shiftKey) {
+            setExplorationMode("keyboard_smooth");
+            setPlayFunction(prev => ({ ...prev, source: "keyboard", active: true, direction }));   // smooth move
+            return;
+        }
 
-        const activeFunction = activeFunctions[0];
-        const activeFunctionIndex = functionDefinitions.findIndex(f => f.id === activeFunction.id);
-        const allLandmarks = getLandmarksN(functionDefinitions, activeFunctionIndex);
+        setExplorationMode("keyboard_stepwise");
+        const CurrentX = parseFloat(cursorCoords[0].x);
+        // Use a more robust approach to check if we're on the grid
+        // This handles floating-point precision issues
+        const epsilon = 1e-10; // Small tolerance for floating-point comparison
+        const gridPosition = Math.round(CurrentX / stepSize) * stepSize;
+        const IsOnGrid = Math.abs(CurrentX - gridPosition) < epsilon;
+        const NewX = direction === 1
+            ? (IsOnGrid ? CurrentX + stepSize : Math.ceil(CurrentX / stepSize) * stepSize)
+            : (IsOnGrid ? CurrentX - stepSize : Math.floor(CurrentX / stepSize) * stepSize);
 
-        // Use current graph bounds
-        const { xMin, xMax } = graphBounds;
+        const currentTime = Date.now();
 
-        // Filter landmarks to only include those within the current view
-        const visibleLandmarks = allLandmarks.filter(landmark =>
-            landmark.x >= xMin && landmark.x <= xMax
-        );
+        // Only move on the first keydown, or once the hold threshold has passed
+        if (lastKeyDownTime.current && (currentTime - lastKeyDownTime.current) < HOLD_THRESHOLD) return;
 
-        // Create navigation points array
-        const navigationPoints = [
-            { type: 'boundary', x: xMin, label: 'Left boundary' }
-        ];
+        // Check for points of interest between the old and the new position
+        const pointsOfInterest = [];
+        getActiveFunctions(functionDefinitions).forEach(func => {
+            func.pointOfInterests.forEach((point) => {
+                pointsOfInterest.push(point.x);
+            });
+        });
+        const passed = direction === 1
+            ? pointsOfInterest.filter(e => (CurrentX < e) && (e < NewX))
+            : pointsOfInterest.filter(e => (NewX < e) && (e < CurrentX));
 
-        // Add sorted visible landmarks
-        const sortedLandmarks = [...visibleLandmarks]
-            .sort((a, b) => a.x - b.x)
-            .map(landmark => ({
-                type: 'landmark',
-                x: landmark.x,
-                label: landmark.label || 'Landmark',
-                landmark: landmark
-            }));
-
-        navigationPoints.push(...sortedLandmarks);
-        navigationPoints.push({ type: 'boundary', x: xMax, label: 'Right boundary' });
-
-        return navigationPoints;
-    };
-
-    // Function to jump to next/previous navigation point
-    const jumpToNavigationPoint = (direction) => {
-        if (!cursorCoords || cursorCoords.length === 0) return;
-
-        const currentX = parseFloat(cursorCoords[0].x);
-        const navigationPoints = getSortedNavigationPoints();
-
-        if (navigationPoints.length === 0) return;
-
-        let targetPoint = null;
-
-        if (direction === 1) { // Next (right)
-            // Find first point to the right of current position
-            targetPoint = navigationPoints.find(point => point.x > currentX);
-            // If none found, wrap to first point (but only if normal navigation hasn't happened)
-            if (!targetPoint) {
-                if (normalNavigationHappenedRef.current) {
-                    // Reset flag and go to left boundary (xMin)
-                    normalNavigationHappenedRef.current = false;
-                    targetPoint = navigationPoints[0]; // Left boundary
-                } else {
-                    targetPoint = navigationPoints[0];
-                }
-            }
-        } else { // Previous (left)
-            // Find last point to the left of current position
-            const leftPoints = navigationPoints.filter(point => point.x < currentX);
-            targetPoint = leftPoints[leftPoints.length - 1];
-            // If none found, wrap to last point (but only if normal navigation hasn't happened)
-            if (!targetPoint) {
-                if (normalNavigationHappenedRef.current) {
-                    // Reset flag and go to right boundary (xMax)
-                    normalNavigationHappenedRef.current = false;
-                    targetPoint = navigationPoints[navigationPoints.length - 1]; // Right boundary
-                } else {
-                    targetPoint = navigationPoints[navigationPoints.length - 1];
-                }
+        // No mute check here: the mixer silences its bus when audio is off.
+        if (passed.length > 0) {
+            try {
+                await audioSampleManager.playSample("notification", { volume: -15 });
+            } catch (error) {
+                console.warn("Failed to play notification sound:", error);
             }
         }
 
-        if (targetPoint) {
-            updateCursor(targetPoint.x);
-
-            // Announce and show toast based on type
-            if (targetPoint.type === 'landmark') {
-                const screenPosition = getScreenPosition(targetPoint.x, targetPoint.landmark.y, graphBounds);
-                // showLandmarkToast(
-                //     `${targetPoint.label}: x = ${targetPoint.x.toFixed(2)}, y = ${targetPoint.landmark.y.toFixed(2)}`,
-                //     screenPosition,
-                //     2000
-                // );
-                // announce(`Jumped to ${targetPoint.label} at x = ${targetPoint.x.toFixed(2)}`);
-            } else {
-                // For boundary points, calculate screen position and show cursor-positioned toast
-                // Get Y coordinate from active function at boundary position
-                const activeFunctions = getActiveFunctions(functionDefinitions);
-                let boundaryY = 0; // Default Y value
-
-                if (activeFunctions.length > 0 && cursorCoords.length > 0) {
-                    // Try to get Y value from current cursor position of active function
-                    const activeFunctionCoord = cursorCoords.find(coord =>
-                        coord.functionId === activeFunctions[0].id
-                    );
-                    if (activeFunctionCoord) {
-                        const y = parseFloat(activeFunctionCoord.y);
-                        if (!isNaN(y) && isFinite(y)) {
-                            boundaryY = y;
-                        }
-                    }
-                }
-
-                const screenPosition = getScreenPosition(targetPoint.x, boundaryY, graphBounds);
-                // showLandmarkToast(
-                //     `${targetPoint.label}: x = ${targetPoint.x.toFixed(2)}`,
-                //     screenPosition,
-                //     2000
-                // );
-                // announce(`Jumped to ${targetPoint.label} at x = ${targetPoint.x.toFixed(2)}`);
-            }
-        }
+        // Move cursor and update last keydown time
+        updateCursor(NewX);
+        lastKeyDownTime.current = currentTime;
     };
 
-    // Function to switch to specific function by index
-    const switchToFunction = (targetIndex) => {
-        if (!functionDefinitions || targetIndex < 0 || targetIndex >= functionDefinitions.length) return;
-
-        const updatedDefinitions = functionDefinitions.map((func, index) => ({
-            ...func,
-            isActive: index === targetIndex
-        }));
-
-        setFunctionDefinitions(updatedDefinitions);
-
-        // Announce the switch
-        const functionName = getFunctionNameN(functionDefinitions, targetIndex) || `Function ${targetIndex + 1}`;
-        announce(`Switched to ${functionName}`);
-        showInfoToast(`${functionName}`, 1500);
-
-        // console.log(`Switched to function ${targetIndex + 1}`);
+    // The registry, plus the commands that need keyboard state: zoom reads a held X or
+    // Y key, Q opens the palette inside a submenu, the cursor keys move the cursor.
+    const actions = {
+        ...commands,
+        "zoom-in": () => zoomBoard(false, pressedKeys.current.has("x"), pressedKeys.current.has("y")),
+        "zoom-out": () => zoomBoard(true, pressedKeys.current.has("x"), pressedKeys.current.has("y")),
+        "quick-options": () => palette.open(["quick-options"]),
+        "cursor-left": (event) => moveCursor(-1, event),
+        "cursor-right": (event) => moveCursor(1, event),
     };
 
-    // Function to jump to landmark by shortcut
-    const jumpToLandmarkByShortcut = (shortcut) => {
-        const activeFunctions = getActiveFunctions(functionDefinitions);
-        if (activeFunctions.length === 0) return;
-
-        const activeFunction = activeFunctions[0];
-        const activeFunctionIndex = functionDefinitions.findIndex(f => f.id === activeFunction.id);
-
-        const landmark = findLandmarkByShortcut(functionDefinitions, activeFunctionIndex, shortcut);
-        if (landmark) {
-            jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast);
-        }
-    };
-
-
+    // The listeners below are registered once and read the current actions from here,
+    // rather than closing over them.
+    const latest = useRef(null);
+    latest.current = { actions, items };
 
     useEffect(() => {
-        // Function to handle key down events
-        const handleKeyDown = async (event) => {
-            // Any key is activity: drop a pending bounds announcement unless
-            // this event is itself a pan/zoom that reschedules it below.
+        if (import.meta.env.DEV) warnAboutConflicts(latest.current.actions, latest.current.items);
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            // Any key is activity: drop a pending bounds announcement. A pan or zoom
+            // triggered by this very key schedules a fresh one.
             cancelBoundsAnnouncement();
 
-            const active = document.activeElement;
+            // Respect a handler that already claimed this combination.
+            if (event.defaultPrevented) return;
 
-            // Only handle events when the chart (role="application") is focused
-            if (!active || active.getAttribute('role') !== 'application') {
-                return;
-            }
+            if (event.key === "Shift") setIsShiftPressed(true);
 
-            await ensureToneStarted();
+            const scope = currentScope();
+            if (scope === null) return;
+
+            // A keydown is a user gesture, so the browser lets the audio context start
+            // here. Not awaited: preventDefault() below has to run synchronously.
+            ensureToneStarted().catch((error) => console.warn("Could not start audio:", error));
 
             pressedKeys.current.add(event.key.toLowerCase());
 
-            // Track Shift key state
-            if (event.key === "Shift") {
-                setIsShiftPressed(true);
-            }
+            const { actions, items } = latest.current;
 
-            const activeFunctions = getActiveFunctions(functionDefinitions);
-            const step = event.shiftKey ? 5 : 1;
-
-            // Handle shortcut for new landmark using utility function
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b' && !event.shiftKey && !event.altKey) {
+            const run = (action, argument) => {
                 event.preventDefault();
                 event.stopPropagation();
+                action(argument);
+            };
 
-                addLandmarkAtCursorPosition(
-                    functionDefinitions,
-                    cursorCoords,
-                    setFunctionDefinitions,
-                    announce,
-                    showInfoToast,
-                    openDialog,
-                    graphBounds,
-                    stepSize
-                );
+            // 1. The assignment table.
+            for (const [id, entry] of Object.entries(HOTKEYS)) {
+                if (!allowsScope(entry.scope, scope)) continue;
+                if (!bindableCombos(entry).some((combo) => matchesShortcut(event, combo))) continue;
+                if (actions[id]) run(actions[id], event);
                 return;
             }
 
-            // Handle Ctrl+Z for centering view at cursor
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey && !event.altKey) {
-                event.preventDefault();
-                event.stopPropagation();
-                centerAtCursor();
+            // 2. Palette entries carrying their own shortcut -- landmarks, functions.
+            for (const item of flattenItems(items)) {
+                if (!item.shortcut || !item.perform || HOTKEYS[item.id]) continue;
+                const combos = bindableCombos({ combos: [item.shortcut], shiftModifies: item.shiftModifies });
+                if (!combos.some((combo) => matchesShortcut(event, combo))) continue;
+                run(item.perform, item);
                 return;
-            }
-
-            // Handle landmark shortcuts - support both regular numbers and Czech keyboard
-            if (event.ctrlKey && !event.altKey && !event.shiftKey) {
-                const landmarkShortcuts = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-
-                // Czech keyboard alternatives for Ctrl shortcuts
-                const czechLandmarkKeyMap = {
-                    '+': '1',  // Czech 1
-                    'ě': '2',  // Czech 2
-                    'š': '3',  // Czech 3
-                    'č': '4',  // Czech 4
-                    'ř': '5',  // Czech 5
-                    'ž': '6',  // Czech 6
-                    'ý': '7',  // Czech 7
-                    'á': '8',  // Czech 8
-                    'í': '9',  // Czech 9
-                    'é': '0'   // Czech 0
-                };
-
-                // Check for regular number keys first
-                if (landmarkShortcuts.includes(event.key)) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    jumpToLandmarkByShortcut(event.key);
-                    return;
-                }
-
-                // Check for Czech keyboard alternatives
-                const mappedShortcut = czechLandmarkKeyMap[event.key];
-                if (mappedShortcut) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    jumpToLandmarkByShortcut(mappedShortcut);
-                    return;
-                }
-            }
-
-            // Handle Czech keyboard shortcuts for function switching
-            const czechFunctionKeyMap = {
-                '+': 0,  // Czech 1
-                'ě': 1,  // Czech 2
-                'š': 2,  // Czech 3
-                'č': 3,  // Czech 4
-                'ř': 4,  // Czech 5
-                'ž': 5,  // Czech 6
-                'ý': 6,  // Czech 7
-                'á': 7,  // Czech 8
-                'í': 8   // Czech 9
-            };
-
-            const czechFunctionKeyMapShift = {
-                '1': 0,
-                '2': 1,
-                '3': 2,
-                '4': 3,
-                '5': 4,
-                '6': 5,
-                '7': 6,
-                '8': 7,
-                '9': 8
-            };
-
-            let targetIndex;
-
-            if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
-                targetIndex = czechFunctionKeyMapShift[event.key];
-            }
-            else if (!event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
-                targetIndex = czechFunctionKeyMap[event.key];
-            }
-
-            if (targetIndex !== undefined) {
-                event.preventDefault();
-                event.stopPropagation();
-                switchToFunction(targetIndex);
-                return;
-            }
-
-            const panView = (updater) => {
-                setGraphBounds(updater);
-                playNavigationEarcon("wasd_keypress");
-                scheduleBoundsAnnouncement(announce, () => graphBoundsRef.current);
-            };
-
-            switch (event.key) {
-                case "a": case "A":
-                    panView(prev => ({ ...prev, xMin: prev.xMin - step, xMax: prev.xMax - step }));
-                    break;
-                case "d": case "D":
-                    panView(prev => ({ ...prev, xMin: prev.xMin + step, xMax: prev.xMax + step }));
-                    break;
-                case "w": case "W":
-                    panView(prev => ({ ...prev, yMin: prev.yMin + step, yMax: prev.yMax + step }));
-                    break;
-                case "s": case "S":
-                    panView(prev => ({ ...prev, yMin: prev.yMin - step, yMax: prev.yMax - step }));
-                    break;
-
-                case "z": case "Z":
-                    ZoomBoard(event.shiftKey, pressedKeys.current.has("x"), pressedKeys.current.has("y"));
-                    break;
-
-                case "ArrowLeft": case "ArrowRight": case "j": case "J": case "l": case "L":
-                    // If batch sonification is active, stop it and keep cursor at current position
-                    if (PlayFunction.active && (PlayFunction.source === "play" || PlayFunction.source === "play_space")) {
-                        setPlayFunction(prev => ({ ...prev, active: false }));
-                        setExplorationMode("none");
-                        // console.log("Batch sonification stopped by arrow key");
-                        break;
-                    }
-
-                    // Handle Cmd/Ctrl + Left/Right for navigation through landmarks
-                    if (event.ctrlKey || event.metaKey) {
-                        event.preventDefault();
-                        event.stopPropagation();
-
-                        if (event.key === "ArrowLeft" || event.key === "j" || event.key === "J") {
-                            // Navigate to previous landmark/boundary
-                            jumpToNavigationPoint(-1);
-                        } else {
-                            // Navigate to next landmark/boundary
-                            jumpToNavigationPoint(1);
-                        }
-                        break;
-                    }
-
-                    // Mark that normal navigation has happened
-                    normalNavigationHappenedRef.current = true;
-
-                    let direction = 1;                               //right by default
-                    if (event.key === "ArrowLeft" || event.key === "j" || event.key === "J") direction = -1;   //left if left arrow or J pressed
-                    // First, stop any active smooth movement
-                    if (PlayFunction.active && PlayFunction.source === "keyboard") {
-                        setPlayFunction(prev => ({ ...prev, active: false }));
-                    }
-
-                    // Clear any mouse exploration timeout
-                    if (mouseTimeoutRef.current) {
-                        clearTimeout(mouseTimeoutRef.current);
-                        mouseTimeoutRef.current = null;
-                    }
-
-                    if (!event.shiftKey) {
-                        setExplorationMode("keyboard_stepwise");
-                        let CurrentX = parseFloat(cursorCoords[0].x);
-                        let NewX;
-                        // Use a more robust approach to check if we're on the grid
-                        // This handles floating-point precision issues
-                        const epsilon = 1e-10; // Small tolerance for floating-point comparison
-                        const gridPosition = Math.round(CurrentX / stepSize) * stepSize;
-                        let IsOnGrid = Math.abs(CurrentX - gridPosition) < epsilon;
-                        if (direction === 1) {
-                            NewX = IsOnGrid ? CurrentX + stepSize : Math.ceil(CurrentX / stepSize) * stepSize;
-                        } else {
-                            NewX = IsOnGrid ? CurrentX - stepSize :  Math.floor(CurrentX / stepSize) * stepSize;
-                        }
-                        let l = [];
-                        activeFunctions.forEach(func => {
-                            func.pointOfInterests.forEach((point) =>{
-                                l.push(point.x);
-                            });
-                        });
-                        let sl;
-
-                        const currentTime = Date.now();
-
-                        // If this is the first keydown or enough time has passed since last movement
-                        if (!lastKeyDownTime.current || (currentTime - lastKeyDownTime.current) >= HOLD_THRESHOLD) {
-                            // Check for points of interest
-                            if (direction === 1){
-                                sl = l.filter(e => (CurrentX < e) && (e < NewX));
-                            } else {
-                                sl = l.filter(e => (NewX < e) && (e < CurrentX));
-                            }
-                            if (sl.length > 0) {
-                                try {
-                                    await audioSampleManager.playSample("notification", { volume: -15 });
-                                } catch (error) {
-                                    console.warn("Failed to play notification sound:", error);
-                                }
-                            }
-
-                            // Move cursor and update last keydown time
-                            updateCursor(NewX);
-                            lastKeyDownTime.current = currentTime;
-                        }
-                    } else {
-                        setExplorationMode("keyboard_smooth");
-                        setPlayFunction(prev => ({ ...prev, source: "keyboard", active: true, direction: direction }));   // smooth move
-                    }
-                    break;
-                case "Home":
-                    // Jump cursor to xMin (left edge)
-                    event.preventDefault();
-                    event.stopPropagation();
-                    updateCursor(graphBounds.xMin);
-                    // announce(`Jumped to left edge at x = ${graphBounds.xMin.toFixed(2)}`);
-                    break;
-
-                case "End":
-                    // Jump cursor to xMax (right edge)
-                    event.preventDefault();
-                    event.stopPropagation();
-                    updateCursor(graphBounds.xMax);
-                    // announce(`Jumped to right edge at x = ${graphBounds.xMax.toFixed(2)}`);
-                    break;
-
-                case " ": // Spacebar plays batch sonification
-                    setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active }));
-                    event.preventDefault();
-                    event.stopPropagation();
-                    break;
-
-                default:
-                    break;
             }
         };
 
-      const handleKeyUp = (e) => {
-        const active = document.activeElement;
+        const handleKeyUp = (event) => {
+            if (event.key === "Shift") setIsShiftPressed(false);
 
-        // Only handle events when the chart (role="application") is focused
-        if (!active || active.getAttribute('role') !== 'application') {
-          return;
-        }
+            pressedKeys.current.delete(event.key.toLowerCase());
 
-        pressedKeys.current.delete(e.key.toLowerCase());
+            if (currentScope() === null) return;
 
-        // Track Shift key state
-        if (e.key === "Shift") {
-          setIsShiftPressed(false);
-        }
+            // Releasing a cursor key stops the glide but keeps the last cursor position.
+            const isCursorKey = ["cursor-left", "cursor-right"].some((id) =>
+                bindableCombos(HOTKEYS[id]).some((combo) => matchesShortcut(event, combo)));
+            if (!isCursorKey) return;
 
-        // If the arrow keys or J/L keys are released, stop move but maintain the last cursor position
-        if (["ArrowLeft", "ArrowRight", "j", "J", "l", "L"].includes(e.key)) {
-          setPlayFunction(prev => {
-            if (prev.source === "keyboard") {
-              // Keep the current x position and just set active to false
-              return { ...prev, active: false };
+            setPlayFunction(prev => (prev.source === "keyboard" ? { ...prev, active: false } : prev));
+            // Reset exploration mode when keyboard exploration stops
+            setExplorationMode("none");
+
+            if (Date.now() - (lastKeyDownTime.current || 0) > KEYPRESS_THRESHOLD) {
+                lastKeyDownTime.current = null;
             }
-            return prev;
-          });
-          // Reset exploration mode when keyboard exploration stops
-          setExplorationMode("none");
+        };
 
-          const currentTime = Date.now();
-          const timeSinceLastKeyDown = currentTime - (lastKeyDownTime.current || 0);
+        document.addEventListener("keydown", handleKeyDown);
+        document.addEventListener("keyup", handleKeyUp);
 
-          if (timeSinceLastKeyDown > KEYPRESS_THRESHOLD) {
-            lastKeyDownTime.current = null;
-          }
-        }
-      };
-
-      document.addEventListener("keydown", handleKeyDown);
-      document.addEventListener("keyup", handleKeyUp);
-
-      return () => {
-        document.removeEventListener("keydown", handleKeyDown);
-        document.removeEventListener("keyup", handleKeyUp);
-      };
-    }, [setPlayFunction, setGraphBounds, setGraphSettings, inputRefs, cursorCoords, updateCursor, stepSize, functionDefinitions, setFunctionDefinitions, setExplorationMode, PlayFunction, mouseTimeoutRef, setIsShiftPressed, ZoomBoard, openDialog, graphBounds, graphSettings, announce]);
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+            document.removeEventListener("keyup", handleKeyUp);
+        };
+    }, [setIsShiftPressed, setPlayFunction, setExplorationMode]);
 
     return null;
 }

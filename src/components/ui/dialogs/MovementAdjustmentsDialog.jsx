@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Description, Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useGraphContext } from "../../../context/GraphContext";
+import { speedIncrement, stepSizeIncrement } from "../../../utils/movementSettings";
 
 const MovementAdjustmentsDialog = ({ isOpen, onClose }) => {
   const { PlayFunction, setPlayFunction, stepSize, setStepSize, focusChart } = useGraphContext();
@@ -79,19 +80,6 @@ const MovementAdjustmentsDialog = ({ isOpen, onClose }) => {
     }
   };
 
-  const getSpeedStep = (currentValue) => {
-    const value = parseFloat(currentValue) || 0;
-    if (value <= 1) return 0.1;
-    if (value <= 10) return 0.5;
-    return 1;
-  };
-
-  const getStepSizeStep = (currentValue) => {
-    const value = parseFloat(currentValue) || 0;
-    if (value <= 1) return 0.1;
-    return 1;
-  };
-
   return (
     <Dialog open={isOpen} onClose={handleClose} aria-modal="true" role="dialog">
       <div className="fixed inset-0 bg-overlay" aria-hidden="true" />
@@ -115,7 +103,7 @@ const MovementAdjustmentsDialog = ({ isOpen, onClose }) => {
               <input
                 id="speed-input"
                 type="number"
-                step={getSpeedStep(PlayFunction.speed)}
+                step={speedIncrement(PlayFunction.speed)}
                 min="0"
                 value={PlayFunction.speed}
                 onChange={(e) => handleSpeedChange(e.target.value)}
@@ -134,7 +122,7 @@ const MovementAdjustmentsDialog = ({ isOpen, onClose }) => {
               <input
                 id="stepsize-input"
                 type="number"
-                step={getStepSizeStep(stepSize)}
+                step={stepSizeIncrement(stepSize)}
                 min="0"
                 value={stepSize}
                 onChange={(e) => handleStepSizeChange(e.target.value)}

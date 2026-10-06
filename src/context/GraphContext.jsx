@@ -21,9 +21,17 @@ export const GraphContextProvider = ({ children }) => {
   });
   const [PlayFunction, setPlayFunction] = useState({ active: false, x: 0, speed: 10, interval: 10, source: null, direction: 1 });
   const playActiveRef = useRef(false);
+  // The movement loop in GraphView is set up once per playback and would otherwise keep
+  // reading the speed captured back then. Kept in step with PlayFunction.speed there.
+  const playSpeedRef = useRef(10);
   const timerRef = useRef(null);
   const mouseTimeoutRef = useRef(null);
   const [updateCursor, setUpdateCursor] = useState(null);
+  // Registered by GraphView: `(functionId, x)` evaluated exactly as the curve is drawn.
+  // Returns the y, `null` where the function has no value, and `undefined` while the
+  // board is not ready. Anything that needs a point on the curve should use this rather
+  // than evaluating the definition a second time.
+  const [evaluateFunctionAt, setEvaluateFunctionAt] = useState(null);
   const [stepSize, setStepSize] = useState(0.25); // Default value 0.5
   const [explorationMode, setExplorationMode] = useState("none"); // "none", "mouse", "keyboard_stepwise", "keyboard_smooth", "batch"
   const [isShiftPressed, setIsShiftPressed] = useState(false); // Track Shift key state
@@ -165,11 +173,14 @@ export const GraphContextProvider = ({ children }) => {
         PlayFunction,
         setPlayFunction,
         playActiveRef,
+        playSpeedRef,
         timerRef,
         mouseTimeoutRef,
         inputRefs,
         updateCursor,
         setUpdateCursor,
+        evaluateFunctionAt,
+        setEvaluateFunctionAt,
         stepSize,
         setStepSize,
         explorationMode,

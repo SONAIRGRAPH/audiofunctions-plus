@@ -55,12 +55,19 @@ const isPlainP = (event) =>
   !event.metaKey &&
   !event.altKey;
 
+// Mod+digit jumps to a landmark; use event.code so layout (e.g. Czech) does not matter.
+const isLandmarkDigitKey = (event) =>
+  /^Digit[0-9]$/.test(event.code) || /^Numpad[0-9]$/.test(event.code);
+
 const isChartActivityKey = (event) => {
   if (isPlainP(event) || isCommandPaletteShortcut(event)) return false;
   const key = event.key.toLowerCase();
   if (event.metaKey || event.ctrlKey) {
-    // Landmark jump / center view / add landmark — still chart work.
-    return ["arrowleft", "arrowright", "j", "l", "z", "b"].includes(key);
+    // Landmark jump (arrows / J/L / digit) / center view / add landmark — still chart work.
+    return (
+      ["arrowleft", "arrowright", "j", "l", "z", "b"].includes(key) ||
+      isLandmarkDigitKey(event)
+    );
   }
   return CHART_ACTIVITY_KEYS.has(key);
 };

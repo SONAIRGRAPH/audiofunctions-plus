@@ -16,8 +16,9 @@ import './command-palette.css'
  * @param {Array}    props.items  see the item model in `demo-commands.jsx`
  * @param {object}   [props.labels]  partial override, see `labels.js`. Pass a stable
  *   object — a fresh one per render churns the memoisation.
+ * @param {string[]} [props.initialPath]  item ids to open inside, e.g. `['quick-options']`
  */
-export function CommandPalette({ open, onClose, items, labels }) {
+export function CommandPalette({ open, onClose, items, labels, initialPath }) {
   const dialogRef = useRef(null)
   const openerRef = useRef(null)
   // Lives here rather than in PaletteBody so focus can be set after showModal().
@@ -72,13 +73,19 @@ export function CommandPalette({ open, onClose, items, labels }) {
     >
       {/* Mounted only while open, so every session starts with fresh state. */}
       {open && (
-        <PaletteBody items={items} onClose={onClose} labels={l} inputRef={inputRef} />
+        <PaletteBody
+          items={items}
+          onClose={onClose}
+          labels={l}
+          inputRef={inputRef}
+          initialPath={initialPath}
+        />
       )}
     </dialog>
   )
 }
 
-function PaletteBody({ items, onClose, labels, inputRef }) {
+function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
   const baseId = useId()
   const listboxId = `${baseId}-listbox`
   const emptyOptionId = `${baseId}-empty`
@@ -103,7 +110,7 @@ function PaletteBody({ items, onClose, labels, inputRef }) {
     select,
     back,
     setActiveByPointer,
-  } = useCommandPalette({ items, onClose, labels })
+  } = useCommandPalette({ items, onClose, labels, initialPath })
 
   const registerRef = useCallback((key, node) => {
     if (node) optionNodes.current.set(key, node)

@@ -23,7 +23,6 @@ function App() {
           <AnnouncementProvider>
             <InfoToastProvider>
               <DialogProvider>
-                <KeyboardHandler />
                 <AppContent />
               </DialogProvider>
             </InfoToastProvider>
@@ -87,6 +86,10 @@ const AppShell = () => {
 
   return (
     <CommandPaletteProvider items={items}>
+      {/* Inside the provider: the keyboard handler opens the palette (Q) and binds the
+          shortcuts of the very items it is given, so hint and binding cannot diverge. */}
+      <KeyboardHandler items={items} />
+
       {/* Skip link for accessibility */}
       {/* <a
         href="#chart"
