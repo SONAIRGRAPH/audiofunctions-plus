@@ -137,7 +137,7 @@ export function useCommands() {
   const { announce } = useAnnouncement();
   const { showInfoToast, showLandmarkToast } = useInfoToast();
   const { openDialog } = useDialog();
-  const { toggleAudio } = useMixer();
+  const { toggleAudio, notifyActivity } = useMixer();
 
   const zoomBoard = useZoomBoard();
   const centerAtCursor = useCenterAtCursor();
@@ -209,6 +209,8 @@ export function useCommands() {
       targetPoint = leftPoints[leftPoints.length - 1] ?? navigationPoints[navigationPoints.length - 1];
     }
 
+    // Same as arrow exploration: landmark jumps reset the AUTO idle mute window.
+    notifyActivity();
     updateCursor(targetPoint.x);
   };
 
@@ -393,11 +395,16 @@ export function useCommands() {
     'jump-to-landmark': (digit) => {
       if (activeFunctionIndex === -1) return;
       const landmark = findLandmarkByShortcut(functionDefinitions, activeFunctionIndex, digit);
-      if (landmark) jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast);
+      if (!landmark) return;
+      // Mod+digit is global-scope; notify here so idle mute resets even without chart focus.
+      notifyActivity();
+      jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast);
     },
 
     // Used by the palette's landmark entries, which pass the landmark itself.
-    'jump-to-landmark-object': (landmark) =>
-      jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast),
+    'jump-to-landmark-object': (landmark) => {
+      notifyActivity();
+      jumpToLandmarkWithToast(landmark, updateCursor, graphBounds, announce, showLandmarkToast);
+    },
   };
 }
