@@ -6,25 +6,30 @@ import GraphSonification from './components/graph/GraphSonification';
 import { DialogProvider, useDialog } from './context/DialogContext';
 import Header from './components/ui/Header';
 import { InstrumentsProvider } from './context/InstrumentsContext';
+import { MixerProvider, useMixer } from './context/MixerContext';
+import SonificationMuteController from './context/SonificationMuteController';
 import KeyboardHandler from "./components/ui/KeyboardHandler";
 import { usePaletteItems } from './components/ui/usePaletteItems';
 import { AnnouncementProvider } from './context/AnnouncementContext';
 import { InfoToastProvider } from './context/InfoToastContext';
+import { ensureToneStarted } from './utils/toneAudio';
 import { CommandPaletteProvider } from './components/ui/command-palette';
 
 function App() {
   return (
     <InstrumentsProvider>
-      <GraphContextProvider>
-        <AnnouncementProvider>
-          <InfoToastProvider>
-            <DialogProvider>
-              <KeyboardHandler />
-              <AppContent />
-            </DialogProvider>
-          </InfoToastProvider>
-        </AnnouncementProvider>
-      </GraphContextProvider>
+      <MixerProvider>
+        <GraphContextProvider>
+          <AnnouncementProvider>
+            <InfoToastProvider>
+              <DialogProvider>
+                <KeyboardHandler />
+                <AppContent />
+              </DialogProvider>
+            </InfoToastProvider>
+          </AnnouncementProvider>
+        </GraphContextProvider>
+      </MixerProvider>
     </InstrumentsProvider>
   );
 }
@@ -60,11 +65,13 @@ const AppContent = () => {
 
 const AppShell = () => {
   // needed to wrap actions into GraphContextProvider
-  const { setIsAudioEnabled, focusChart } = useGraphContext();
+  const { setIsAudioEnabled } = useMixer();
+  const { focusChart } = useGraphContext();
 
-  const handleSkipActivate = (e) => {
+  const handleSkipActivate = async (e) => {
     // Enable audio and focus the chart just like pressing "P"
     if (e) e.preventDefault();
+    await ensureToneStarted();
     setIsAudioEnabled((prev) => (prev ? prev : true));
     // Ensure focus after enabling audio
     setTimeout(() => {
@@ -114,6 +121,7 @@ const AppShell = () => {
 
 
 
+      <SonificationMuteController />
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
         <Header />
         <div className="flex-1 overflow-auto">

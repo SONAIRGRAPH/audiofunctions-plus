@@ -75,6 +75,24 @@ Plays when the cursor passes over points of interest while navigating in discret
 </audio>
 Plays when the user attempts to zoom or pan beyond the allowable limits of the chart view. This indicates that further navigation in that direction is not possible.
 
+**WASD Pan**
+<audio controls style="display: block; margin: auto;">
+  <source src="earcons/wasd_keypress.mp3" type="audio/mpeg"/>
+</audio>
+Plays on each W, A, S, or D key press while shifting the visible chart bounds.
+
+**Zoom In**
+<audio controls style="display: block; margin: auto;">
+  <source src="earcons/zoomin.mp3" type="audio/mpeg"/>
+</audio>
+Plays when the user zooms in with Z (or the Zoom In command).
+
+**Zoom Out**
+<audio controls style="display: block; margin: auto;">
+  <source src="earcons/zoomout.mp3" type="audio/mpeg"/>
+</audio>
+Plays when the user zooms out with Shift+Z (or the Zoom Out command).
+
 ---
 
 These earcons work together with the continuous tone sonification to provide a comprehensive audio experience that helps users navigate and understand mathematical functions through sound.
