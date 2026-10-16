@@ -392,6 +392,10 @@ const GraphView = () => {
     landmarkObjectsRef.current.clear(); //Clear landmark objects
     parsedExpressionsRef.current.clear();
 
+    // Where B playback starts: just inside the left edge of the visible chart.
+    // Used only when the page opens and no cursor position exists yet.
+    const openingX = clampX(graphBounds.xMin, graphBounds).x;
+
     // Create graph objects and cursors for each active function
     activeFunctions.forEach((func, funcIndex) => {
       let graphFormula;
@@ -550,19 +554,27 @@ const GraphView = () => {
         ? cursorCoords.find(c => c.functionId === func.id)
         : undefined;
 
-      let initialX = 0;
+      let initialX = openingX;
       let initialY = 0;
 
-      // Use preserved position if available, otherwise use current cursorCoords
+      // Use preserved position if available, otherwise use current cursorCoords.
+      // With neither, the cursor opens on the left edge (openingX).
       if (preservedPos) {
         initialX = preservedPos.x;
         initialY = preservedPos.y;
       } else if (lastPos) {
         initialX = parseFloat(lastPos.x);
         initialY = parseFloat(lastPos.y);
+      } else {
+        try {
+          const y = board.jc.snippet(expr, true, "x", true)(openingX);
+          if (typeof y === "number" && Number.isFinite(y)) initialY = y;
+        } catch {
+          // updateCursors below places the cursor on the curve
+        }
       }
 
-      // Create cursor for this function at last known position (or [0,0])
+      // Create cursor for this function at its last known position, or the left edge
       // Without a per-function color the cursor draws in the theme's indicator
       // color through .cursor-themed.
       const cursor = board.create("point", [initialX, initialY], {
@@ -954,12 +966,12 @@ const GraphView = () => {
         clearInterval(currentTimerRef.current);
         currentTimerRef.current = null;
       }
-      // Use the last known position immediately
+      // Use the last known position immediately. On first open that is the left edge.
       if (board && board.jc) {
-      if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
-        updateCursors(lastCursorPositionRef.current.x);
-      } else if (PlayFunction.x !== undefined) {
-        updateCursors(PlayFunction.x);
+        if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
+          updateCursors(lastCursorPositionRef.current.x);
+        } else {
+          updateCursors(openingX);
         }
       }
     }
