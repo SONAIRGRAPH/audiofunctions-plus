@@ -6,7 +6,12 @@ import { createContext, useContext } from 'react'
 export const ActionsContext = createContext(null)
 export const OpenContext = createContext(false)
 
-/** `{ open, close, toggle }` — stable across renders, safe in dependency arrays. */
+/**
+ * `{ open, close, toggle }` — stable across renders, safe in dependency arrays.
+ *
+ * `open(path)` may start inside a submenu: `open(['quick-options'])`. `toggle()` always
+ * opens at the root.
+ */
 export function useCommandPaletteActions() {
   const actions = useContext(ActionsContext)
   if (!actions) {

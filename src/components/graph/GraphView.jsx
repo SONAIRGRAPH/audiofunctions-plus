@@ -179,7 +179,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, updateCursor, setUpdateCursor, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -392,6 +392,10 @@ const GraphView = () => {
     landmarkObjectsRef.current.clear(); //Clear landmark objects
     parsedExpressionsRef.current.clear();
 
+    // Where B playback starts: just inside the left edge of the visible chart.
+    // Used only when the page opens and no cursor position exists yet.
+    const openingX = clampX(graphBounds.xMin, graphBounds).x;
+
     // Create graph objects and cursors for each active function
     activeFunctions.forEach((func, funcIndex) => {
       let graphFormula;
@@ -550,19 +554,27 @@ const GraphView = () => {
         ? cursorCoords.find(c => c.functionId === func.id)
         : undefined;
 
-      let initialX = 0;
+      let initialX = openingX;
       let initialY = 0;
 
-      // Use preserved position if available, otherwise use current cursorCoords
+      // Use preserved position if available, otherwise use current cursorCoords.
+      // With neither, the cursor opens on the left edge (openingX).
       if (preservedPos) {
         initialX = preservedPos.x;
         initialY = preservedPos.y;
       } else if (lastPos) {
         initialX = parseFloat(lastPos.x);
         initialY = parseFloat(lastPos.y);
+      } else {
+        try {
+          const y = board.jc.snippet(expr, true, "x", true)(openingX);
+          if (typeof y === "number" && Number.isFinite(y)) initialY = y;
+        } catch {
+          // updateCursors below places the cursor on the curve
+        }
       }
 
-      // Create cursor for this function at last known position (or [0,0])
+      // Create cursor for this function at its last known position, or the left edge
       // Without a per-function color the cursor draws in the theme's indicator
       // color through .cursor-themed.
       const cursor = board.create("point", [initialX, initialY], {
@@ -703,6 +715,21 @@ const GraphView = () => {
       return { x: snappedX, blocked: blockedEdge };
     };
     setUpdateCursor(() => updateCursors);
+
+    // The same evaluation the cursor above uses, published so that dialogs reading a
+    // point off the curve get the value that is actually drawn -- see GraphContext.
+    setEvaluateFunctionAt(() => (functionId, x) => {
+      const parsedExpr = parsedExpressionsRef.current.get(functionId);
+      if (!boardRef.current || !parsedExpr) return undefined;
+
+      try {
+        const y = boardRef.current.jc.snippet(parsedExpr, true, "x", true)(x);
+        return typeof y === 'number' && !isNaN(y) && isFinite(y) ? y : null;
+      } catch (err) {
+        console.warn(`Could not evaluate function ${functionId} at x=${x}:`, err);
+        return null;
+      }
+    });
 
     // Update cursors to their preserved positions after recreation
     if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
@@ -901,15 +928,19 @@ const GraphView = () => {
           return;
         }
 
+        // From the ref, not from the captured PlayFunction: changing the speed replaces
+        // that object, which this closure would never see.
+        const currentSpeed = playSpeedRef.current;
+
         // Use direction to determine movement direction
         let actualSpeed;
         if (PlayFunction.source === "keyboard") {
-          actualSpeed = Math.abs(PlayFunction.speed) * PlayFunction.direction;
+          actualSpeed = Math.abs(currentSpeed) * PlayFunction.direction;
         } else if (PlayFunction.source === "play") {
           // For batch sonification, use the speed directly (positive = right, negative = left)
-          actualSpeed = PlayFunction.speed;
+          actualSpeed = currentSpeed;
         } else {
-          actualSpeed = PlayFunction.speed;
+          actualSpeed = currentSpeed;
         }
         PlayFunction.x += ((graphBounds.xMax - graphBounds.xMin) / (1000 / PlayFunction.interval)) * (actualSpeed / 100);
 
@@ -920,7 +951,7 @@ const GraphView = () => {
         // Stop play function if we've reached the boundaries
         // For batch sonification, only stop when reaching the opposite boundary
         const shouldStop = PlayFunction.source === "play"
-          ? (PlayFunction.speed > 0 ? blocked === "right" : blocked === "left")
+          ? (currentSpeed > 0 ? blocked === "right" : blocked === "left")
           : blocked !== null;
 
         if (shouldStop) {
@@ -935,12 +966,12 @@ const GraphView = () => {
         clearInterval(currentTimerRef.current);
         currentTimerRef.current = null;
       }
-      // Use the last known position immediately
+      // Use the last known position immediately. On first open that is the left edge.
       if (board && board.jc) {
-      if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
-        updateCursors(lastCursorPositionRef.current.x);
-      } else if (PlayFunction.x !== undefined) {
-        updateCursors(PlayFunction.x);
+        if (lastCursorPositionRef.current && lastCursorPositionRef.current.x !== undefined) {
+          updateCursors(lastCursorPositionRef.current.x);
+        } else {
+          updateCursors(openingX);
         }
       }
     }
@@ -996,6 +1027,12 @@ const GraphView = () => {
   useEffect(() => {
     playActiveRef.current = PlayFunction.active;
   }, [PlayFunction.active]);
+
+  // Same for the speed, which the running movement loop reads from the ref so a change
+  // takes effect mid-movement instead of only on the next playback.
+  useEffect(() => {
+    playSpeedRef.current = PlayFunction.speed;
+  }, [PlayFunction.speed, playSpeedRef]);
 
   useEffect(() => {
     if (boardRef.current) {

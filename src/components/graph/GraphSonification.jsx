@@ -44,6 +44,7 @@ const GraphSonification = () => {
   const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from mixer master gate
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
+  const openingEdgeSeededRef = useRef(false); // Opening placement on the left edge is not a navigation into it
 
   const { getInstrumentByName } = useInstruments();
   const { isEditFunctionDialogOpen } = useDialog();
@@ -637,6 +638,19 @@ const GraphSonification = () => {
     // for the rest of the run, including the opposite end.
     const suppressStartBorderEarcon =
       isBatchPlayback && !batchStartEarconPlayedRef.current;
+
+    // The chart opens with the cursor already parked on the left edge, where B
+    // playback starts. That is a resting position, so it must not sound like the
+    // user just navigated into the border. Later arrivals still announce.
+    if (!openingEdgeSeededRef.current && cursorCoords.length > 0 && borderEdgeRef.current === null) {
+      openingEdgeSeededRef.current = true;
+      const sample = cursorCoords.find(coord => Number.isFinite(parseFloat(coord.x)));
+      if (sample && (sample.blockedEdge ?? null) === null) {
+        const edge = horizontalEdge(parseFloat(sample.x), graphBounds, null);
+        if (edge) borderEdgeRef.current = edge;
+      }
+    }
+
     const borderEdge = processHorizontalBorder(cursorCoords, {
       suppressEarcon: suppressStartBorderEarcon
     });

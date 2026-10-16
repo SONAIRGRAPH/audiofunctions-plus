@@ -1,8 +1,12 @@
-import React from "react";
-import { Wand, Volume2, VolumeX } from "lucide-react";
+import React, { useCallback, useRef, useState } from "react";
+import { SlidersHorizontal, Wand, Volume2, VolumeX } from "lucide-react";
 import { useMixer } from "../../context/MixerContext";
 import { ensureToneStarted } from "../../utils/toneAudio";
 import { useCommandPaletteActions } from "./command-palette";
+import MixerDebugPanel from "./MixerDebugPanel";
+
+/** Temporary debug mixer: only in `npm run dev`, hidden from production builds. */
+const SHOW_MIXER_DEBUG = import.meta.env.DEV;
 
 /**
  * Header component for the application
@@ -11,6 +15,13 @@ import { useCommandPaletteActions } from "./command-palette";
 const Header = () => {
   const { toggle } = useCommandPaletteActions();
   const { isAudioEnabled, toggleAudio } = useMixer();
+  const [mixerDebugOpen, setMixerDebugOpen] = useState(false);
+  const mixerButtonRef = useRef(null);
+
+  const closeMixerDebug = useCallback(() => {
+    setMixerDebugOpen(false);
+    mixerButtonRef.current?.focus();
+  }, []);
 
   const handleToggleAudio = async () => {
     await ensureToneStarted();
@@ -29,7 +40,23 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        {SHOW_MIXER_DEBUG ? (
+          <button
+            ref={mixerButtonRef}
+            type="button"
+            onClick={() => setMixerDebugOpen((open) => !open)}
+            className="btn-secondary flex items-center gap-2"
+            aria-expanded={mixerDebugOpen}
+            aria-controls="mixer-debug-panel"
+            title="Open debug mixer (temporary)"
+          >
+            <SlidersHorizontal className="size-5" />
+            <span className="hidden sm:inline">Mixer</span>
+          </button>
+        ) : null}
+
         <button
+          type="button"
           onClick={handleToggleAudio}
           className="p-2 hover:text-foreground border-transparent bg-transparent"
           aria-label={`${isAudioEnabled ? "Disable Audio" : "Enable Audio"}, keyboard shortcut: P`}
@@ -53,6 +80,9 @@ const Header = () => {
           <span className="text-xs opacity-70 hidden md:inline" aria-hidden="true">({shortcutKey})</span>
         </button>
       </div>
+      {SHOW_MIXER_DEBUG && mixerDebugOpen ? (
+        <MixerDebugPanel onClose={closeMixerDebug} />
+      ) : null}
     </header>
   );
 };

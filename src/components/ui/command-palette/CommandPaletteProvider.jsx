@@ -21,13 +21,23 @@ function isModK(event) {
  */
 export function CommandPaletteProvider({ items, labels, shortcut = isModK, children }) {
   const [open, setOpen] = useState(false)
+  // Which submenu to start in, read once per opening.
+  const [initialPath, setInitialPath] = useState([])
 
   // Stable identity — see paletteContext.
   const actions = useMemo(
     () => ({
-      open: () => setOpen(true),
+      /** @param {string[]} [path] item ids to descend into, e.g. `['quick-options']`. */
+      open: (path) => {
+        // Tolerates `onClick={open}`, which would otherwise hand us a MouseEvent.
+        setInitialPath(Array.isArray(path) ? path : [])
+        setOpen(true)
+      },
       close: () => setOpen(false),
-      toggle: () => setOpen((current) => !current),
+      toggle: () => {
+        setInitialPath([])
+        setOpen((current) => !current)
+      },
     }),
     [],
   )
@@ -38,8 +48,9 @@ export function CommandPaletteProvider({ items, labels, shortcut = isModK, child
       if (event.defaultPrevented) return
       if (!shortcut(event)) return
       event.preventDefault()
-      // Toggles. The listener sits on `window`, so it also fires while focus is
-      // inside the palette's input.
+      // Toggles, always at the root. The listener sits on `window`, so it also fires
+      // while focus is inside the palette's input.
+      setInitialPath([])
       setOpen((current) => !current)
     }
 
@@ -51,7 +62,13 @@ export function CommandPaletteProvider({ items, labels, shortcut = isModK, child
     <ActionsContext.Provider value={actions}>
       <OpenContext.Provider value={open}>
         {children}
-        <CommandPalette open={open} onClose={actions.close} items={items} labels={labels} />
+        <CommandPalette
+          open={open}
+          onClose={actions.close}
+          items={items}
+          labels={labels}
+          initialPath={initialPath}
+        />
       </OpenContext.Provider>
     </ActionsContext.Provider>
   )

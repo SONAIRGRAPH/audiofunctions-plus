@@ -4,15 +4,25 @@ import { useGraphContext } from "../../../context/GraphContext";
 import { useAnnouncement } from "../../../context/AnnouncementContext";
 import { useInfoToast } from "../../../context/InfoToastContext";
 import { updateLandmarkWithValidation, getLandmarksN, validateLandmarkCoordinates, removeLandmarkWithValidation } from "../../../utils/graphObjectOperations";
-import { create, all } from 'mathjs';
-import { checkMathSpell, transformMathConstants } from "../../../utils/parse";
 import landmarkEarconManager from "../../../utils/landmarkEarcons";
 
-const config = {};
-const math = create(all, config);
+// A landmark stores a plain number; anything else means "no value here".
+const toFiniteNumber = (value) => {
+  // Number('') and Number(null) are 0, which would pass an empty field off as x = 0
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+/** For display and for saving, where a number is required. */
+const toNumber = (value) => toFiniteNumber(value) ?? 0;
+
+// A landmark has to sit on the curve, so an x whose y cannot be determined must not be
+// saved -- neither with a 0 nor with the y of the previous x.
+const Y_UNAVAILABLE = "Could not calculate y for this x. The function may have no value there.";
 
 const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
-  const { functionDefinitions, setFunctionDefinitions } = useGraphContext();
+  const { functionDefinitions, setFunctionDefinitions, evaluateFunctionAt } = useGraphContext();
   const { announce } = useAnnouncement();
   const { showInfoToast } = useInfoToast();
 
@@ -35,55 +45,34 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
   // Check if there are any errors that prevent saving
   const hasErrors = Object.keys(inputErrors).some(key => inputErrors[key] && inputErrors[key].length > 0);
 
-  // Function to calculate Y value from X value and function
+  /**
+   * The y of the function at this x, or `null` when it cannot be determined.
+   *
+   * Uses the chart's own evaluation, so a landmark lands exactly where the curve is
+   * drawn. Callers must not fall back to a 0 or to the y of another x -- a landmark has
+   * to sit on the curve.
+   */
   const calculateYFromX = (xValue) => {
-    if (!landmarkData || !functionDefinitions) return 0;
+    if (!landmarkData || !functionDefinitions) {
+      console.warn('Landmark dialog: no landmark data or function definitions');
+      return null;
+    }
 
     const { functionIndex } = landmarkData;
     const func = functionDefinitions[functionIndex];
 
-    if (!func) return 0;
-
-    try {
-      if (func.type === 'function') {
-        // Handle regular functions
-        const expression = func.functionDef.replace(/\*\*/g, '^');
-        const parsed = transformMathConstants(math.parse(expression));
-        const compiled = math.compile(parsed.toString());
-        return compiled.evaluate({ x: xValue });
-      } else if (func.type === 'piecewise_function') {
-        // Handle piecewise functions
-        const pieces = func.functionDef;
-
-        for (const [expression, condition] of pieces) {
-          try {
-            // Parse and evaluate condition
-            const conditionExpr = condition.replace(/\*\*/g, '^');
-            const parsedCondition = transformMathConstants(math.parse(conditionExpr));
-            const compiledCondition = math.compile(parsedCondition.toString());
-            const conditionResult = compiledCondition.evaluate({ x: xValue });
-
-            if (conditionResult) {
-              // Parse and evaluate function expression
-              const functionExpr = expression.replace(/\*\*/g, '^');
-              const parsedFunction = transformMathConstants(math.parse(functionExpr));
-              const compiledFunction = math.compile(parsedFunction.toString());
-              return compiledFunction.evaluate({ x: xValue });
-            }
-          } catch (conditionError) {
-            console.warn('Error evaluating piecewise condition:', conditionError);
-            continue;
-          }
-        }
-
-        throw new Error('No matching condition in piecewise function');
-      } else {
-        throw new Error('Unknown function type');
-      }
-    } catch (error) {
-      console.warn('Could not evaluate function at x =', xValue, error);
-      return 0;
+    if (!func) {
+      console.warn(`Landmark dialog: no function at index ${functionIndex}`);
+      return null;
     }
+
+    if (!evaluateFunctionAt) {
+      console.warn('Landmark dialog: the chart has not published its evaluation yet');
+      return null;
+    }
+
+    // undefined means the board is not ready, which is as good as no value here
+    return evaluateFunctionAt(func.id, xValue) ?? null;
   };
 
   // Initialize landmark earcon manager when dialog opens
@@ -129,7 +118,7 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
       });
 
       setInputErrors({});
-      announceStatus(`Edit landmark dialog opened. Current position: x=${landmark.x.toFixed(2)}, y=${landmark.y.toFixed(2)}.`);
+      announceStatus(`Edit landmark dialog opened. Current position: x=${toNumber(landmark.x).toFixed(2)}, y=${toNumber(landmark.y).toFixed(2)}.`);
     }
   }, [isOpen, landmarkData, functionDefinitions]);
 
@@ -174,29 +163,24 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
 
   // Handle input changes
   const handleXChange = (value) => {
-    // Always update the display value
-    setLocalLandmark(prev => {
-      let newX = value;
-      let newY = prev.y; // Keep previous Y value during typing
+    // Empty or a lone minus are states you pass through while typing -- leave y alone
+    const isNumeric = value !== '' && value !== '-' && !isNaN(parseFloat(value));
+    // null means "no y here", and it stays null so the field goes blank instead of
+    // showing the y of some other x
+    const newY = isNumeric ? calculateYFromX(parseFloat(value)) : undefined;
 
-      // Only calculate new Y if we have a valid number
-      if (value !== '' && value !== '-' && !isNaN(parseFloat(value))) {
-        newX = parseFloat(value);
-        newY = calculateYFromX(newX);
-      }
-
-      return {
-        ...prev,
-        x: newX,
-        y: newY
-      };
-    });
+    setLocalLandmark(prev => ({
+      ...prev,
+      x: isNumeric ? parseFloat(value) : value,
+      y: isNumeric ? newY : prev.y
+    }));
 
     // Validate X coordinate
     const xErrors = validateXCoordinate(value);
     setInputErrors(prev => ({
       ...prev,
-      x: xErrors.length > 0 ? xErrors : undefined
+      x: xErrors.length > 0 ? xErrors : undefined,
+      y: isNumeric && newY === null ? [Y_UNAVAILABLE] : undefined
     }));
   };
 
@@ -209,7 +193,11 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
     }
 
     const numValue = parseFloat(finalValue);
-    const newY = calculateYFromX(numValue);
+
+    // Leaving the field without having changed x must not touch y: stored landmarks are
+    // rounded to two decimals, and recalculating would swap that for the unrounded value.
+    const unchanged = toFiniteNumber(localLandmark.x) === numValue;
+    const newY = unchanged ? localLandmark.y : calculateYFromX(numValue);
 
     setLocalLandmark(prev => ({
       ...prev,
@@ -221,7 +209,8 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
     const xErrors = validateXCoordinate(finalValue);
     setInputErrors(prev => ({
       ...prev,
-      x: xErrors.length > 0 ? xErrors : undefined
+      x: xErrors.length > 0 ? xErrors : undefined,
+      y: newY === null ? [Y_UNAVAILABLE] : undefined
     }));
   };
 
@@ -308,8 +297,9 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
 
     const updates = {
       label: localLandmark.label,
-      x: localLandmark.x,
-      y: localLandmark.y,
+      // Both may still be mid-typing values such as '' or '-' -- store numbers only.
+      x: toNumber(localLandmark.x),
+      y: toNumber(localLandmark.y),
       shape: localLandmark.appearance,
       earcon: `landmark_${localLandmark.appearance}`
     };
@@ -605,17 +595,32 @@ const EditLandmarkDialog = ({ isOpen, onClose, landmarkData = null }) => {
                   <input
                     id="landmark-y"
                     type="text"
-                    value={typeof localLandmark.y === 'number' ? localLandmark.y.toFixed(6) : localLandmark.y}
+                    value={typeof localLandmark.y === 'number' ? localLandmark.y.toFixed(6) : (localLandmark.y ?? '')}
                     className="grow text-input-inner"
                     aria-label="Y coordinate (automatically calculated)"
+                    aria-invalid={inputErrors.y ? 'true' : 'false'}
+                    aria-errormessage={inputErrors.y ? "y-coordinate-error" : undefined}
                     readOnly
                     tabIndex={-1}
                     aria-description="Y coordinate, automatically calculated from X coordinate and function value"
                   />
                 </div>
-                <div className="text-xs text-descriptions mt-1">
-                  Auto-calculated
-                </div>
+                {inputErrors.y ? (
+                  <div
+                    id="y-coordinate-error"
+                    className="error-message mt-1"
+                    role="alert"
+                    aria-live="assertive"
+                    aria-atomic="true"
+                  >
+                    <span className="error-icon" aria-hidden="true">⚠️</span>
+                    {inputErrors.y[0]}
+                  </div>
+                ) : (
+                  <div className="text-xs text-descriptions mt-1">
+                    Auto-calculated
+                  </div>
+                )}
               </div>
             </div>
 

@@ -93,8 +93,17 @@ function resolveLevel(rootItems, path, rootLabel) {
  * - Levels hold only their path, so the whole palette follows a changing `items`
  *   prop with no stale snapshot.
  */
-export function useCommandPalette({ items, onClose, labels }) {
-  const [stack, setStack] = useState([{ path: [], query: '', activeKey: null }])
+export function useCommandPalette({ items, onClose, labels, initialPath = [] }) {
+  // One level per step of `initialPath`, so opening inside a submenu keeps the levels
+  // above it and Backspace walks back out. A path that does not resolve is pruned below.
+  const [stack, setStack] = useState(() => [
+    { path: [], query: '', activeKey: null },
+    ...initialPath.map((_, index) => ({
+      path: initialPath.slice(0, index + 1),
+      query: '',
+      activeKey: null,
+    })),
+  ])
   const [cause, setCause] = useState('level')
   const { messages, announce, cancel: cancelAnnouncement } = useAnnouncer()
 
@@ -295,9 +304,9 @@ export function useCommandPalette({ items, onClose, labels }) {
     announce(announcement, { delay: ANNOUNCE_DELAY[cause] ?? 0 })
   }, [announcement, cause, signature, announce, cancelAnnouncement])
 
-  // Always the root text — the stack starts empty on every mount. A string, so an
-  // unstable `labels` object cannot retrigger the effect below.
-  const introduction = l.footerRoot
+  // Matches where the palette opened: the root, or the submenu of an `initialPath`. A
+  // string, so an unstable `labels` object cannot retrigger the effect below.
+  const introduction = canGoBack ? l.footerSubmenu : l.footerRoot
 
   // The keyboard help, spoken once per session after the dialog has announced itself.
   // Must stay below the effect above: on open that one runs first and may cancel a

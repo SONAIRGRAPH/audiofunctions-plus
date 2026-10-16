@@ -4,6 +4,7 @@ import { Delete, Music, Wind, Zap, Guitar } from "lucide-react";
 import { useGraphContext } from "../../../context/GraphContext";
 import { useInstruments } from "../../../context/InstrumentsContext";
 import {useInfoToast} from "../../../context/InfoToastContext"
+import { useAnnouncement } from "../../../context/AnnouncementContext";
 import {
   getFunctionCount,
   getFunctionDefN,
@@ -23,6 +24,7 @@ import {isAssignment} from "../../../utils/parse.js";
 const EditFunctionDialog = ({ isOpen, onClose }) => {
   const { functionDefinitions, setFunctionDefinitions, graphSettings, focusChart, inputErrors, setInputErrors } = useGraphContext();
   const {showInfoToast} = useInfoToast();
+  const { announce } = useAnnouncement();
   const functionDefinitionsBackup = useRef(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [focusAfterAction, setFocusAfterAction] = useState(null);
@@ -207,8 +209,10 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
     }
 
     // Check for modified functions and clear their landmarks
+    let updatedDefinitions = functionDefinitions;
+    const clearedFunctions = [];
     if (functionDefinitionsBackup.current) {
-      const updatedDefinitions = functionDefinitions.map((currentFunc, index) => {
+      updatedDefinitions = functionDefinitions.map((currentFunc, index) => {
         const backupFunc = functionDefinitionsBackup.current.find(f => f.id === currentFunc.id);
 
         if (backupFunc) {
@@ -233,6 +237,9 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
           // If function definition changed (ignoring whitespace), clear landmarks
           if (currentFuncNormalized !== backupFuncNormalized) {
             // console.log(`Function ${currentFunc.functionName} (ID: ${currentFunc.id}) was modified - clearing landmarks`);
+            if (currentFunc.landmarks?.length > 0) {
+              clearedFunctions.push(currentFunc.functionName || `Function ${index + 1}`);
+            }
             return {
               ...currentFunc,
               landmarks: []
@@ -242,13 +249,11 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
 
         return currentFunc;
       });
-
-      // Update function definitions with cleared landmarks where necessary
-      setFunctionDefinitions(updatedDefinitions);
     }
 
-
-    const definitionsWithAssignments = functionDefinitions.map((currentFunc,index) => {
+    // Built on updatedDefinitions: a second update from functionDefinitions would
+    // overwrite the cleared landmarks above
+    const definitionsWithAssignments = updatedDefinitions.map((currentFunc,index) => {
       console.log("Checking function definition for assignment: ", currentFunc.functionDef);
       // if (!isAssignment(currentFunc.functionDef)) {
       //   currentFunc.functionDef = "f(x) = " + currentFunc.functionDef;
@@ -268,6 +273,13 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
     });
 
     setFunctionDefinitions(definitionsWithAssignments);
+
+    // Global live region: the dialog's own one disappears as it closes
+    if (clearedFunctions.length > 0) {
+      const message = `Landmarks from ${clearedFunctions.join(', ')} removed because the function changed.`;
+      announce(message);
+      showInfoToast(message, 3000);
+    }
 
     onClose();
     setTimeout(() => focusChart(), 100);
