@@ -397,7 +397,7 @@ const GraphView = () => {
     const openingX = clampX(graphBounds.xMin, graphBounds).x;
 
     // Create graph objects and cursors for each active function
-    activeFunctions.forEach((func, funcIndex) => {
+    activeFunctions.forEach((func) => {
       let graphFormula;
       let expr;
       let hasError = false;
@@ -516,12 +516,11 @@ const GraphView = () => {
       parsedExpressionsRef.current.set(func.id, expr);
 
       // Curve color: an explicit func.color takes precedence and is passed as
-      // an attribute. Without one the curve only gets a class from the theme
-      // palette (--af-curve-1 ... --af-curve-6), so it recolors on a theme
-      // switch without rebuilding the board.
-      const curvePaletteClass = `curve-${(funcIndex % 6) + 1}`;
+      // an attribute. Without one every curve uses the theme's main curve color
+      // (.curve-1 -> --af-curve-1), set through a class so it recolors on a
+      // theme switch without rebuilding the board.
       const graphObject = board.create("functiongraph", [graphFormula], {
-        cssClass: func.color ? "curve" : `curve ${curvePaletteClass}`,
+        cssClass: func.color ? "curve" : "curve curve-1",
         fixed: true,
         highlight: false,
         ...(func.color ? { strokeColor: func.color } : {}),
