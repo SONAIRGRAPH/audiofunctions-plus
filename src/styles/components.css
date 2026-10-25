@@ -277,3 +277,12 @@
 [role="dialog"] li {
   font-size: 1rem;
 }
+
+/* All Headless UI dialogs are portaled into this container. Without a z-index
+   they would sit below anything positioned with one -- the info toast (z-40)
+   in particular. The command palette needs no rule: as a native <dialog> it
+   lives in the top layer. */
+#headlessui-portal-root {
+  position: relative;
+  z-index: 50;
+}

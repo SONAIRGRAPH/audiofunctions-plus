@@ -106,7 +106,7 @@ export const useCenterAtCursor = () => {
     const roundedX = Number(cursorX).toFixed(2);
     const roundedY = Number(cursorY).toFixed(2);
     announce(`View centered at cursor position: x = ${roundedX}, y = ${roundedY}`);
-    showInfoToast(`Centered at (${roundedX}, ${roundedY})`, 1500);
+    showInfoToast(`Centered at (${roundedX}, ${roundedY})`, 1500, { dismissOnGraphInteraction: true });
   };
 };
 
@@ -234,25 +234,26 @@ export function useCommands() {
         Math.abs(landmark.y - coord.y) < epsilon
       );
 
-      let message = `${functionName}: `;
+      let message = ``;
       if (landmarkAtPosition) {
         message += `"${landmarkAtPosition.label}" at \n`;
       }
-      message += `x = ${roundedX}, y = ${roundedY}`;
+      // message += `X = ${roundedX}, Y = ${roundedY}, [${functionName}]`;
+      message += `(${roundedX}, ${roundedY}) - ${functionName}`;
 
       return message;
     });
 
     const message = messages.join('\n');
-    announce(`Current Coordinates:\n\n${message}`);
-    showInfoToast(`Current Coordinates:\n\n${message}`);
+    announce(`${message}`);
+    showInfoToast(`${message}`, undefined, { dismissOnGraphInteraction: true });
   };
 
   const showViewBounds = () => {
     const { xMin, xMax, yMin, yMax } = graphBounds;
-    const message = `Current View Bounds:\n\nX: [${Number(xMin).toFixed(2)}, ${Number(xMax).toFixed(2)}]\nY: [${Number(yMin).toFixed(2)}, ${Number(yMax).toFixed(2)}]`;
+    const message = `X: [${Number(xMin).toFixed(2)}, ${Number(xMax).toFixed(2)}]\nY: [${Number(yMin).toFixed(2)}, ${Number(yMax).toFixed(2)}]`;
     announce(message);
-    showInfoToast(message);
+    showInfoToast(message, undefined, { dismissOnGraphInteraction: true });
   };
 
   /** Step through the functions, wrapping around at either end. */

@@ -204,6 +204,24 @@ export const highlightStylePref = definePreference({
   resolve: (value) => (value === 'auto' ? readPreset('highlightStyle') ?? 'fill' : value),
 });
 
+/* ---------------------------------------------------------------------------
+   Info toast position
+
+   Where info toasts appear: centered above the graph cursor (falling back to
+   the corner when the cursor is not visible), or always in the fixed corner.
+   Read by InfoToastContext each time a toast is shown. No UI yet, set from the
+   console with toastPositionPref.set('corner') or via localStorage.
+   --------------------------------------------------------------------------- */
+
+export const TOAST_POSITIONS = ['cursor', 'corner'];
+
+export const toastPositionPref = definePreference({
+  key: 'toastPosition',
+  attr: 'data-toast-position',
+  values: TOAST_POSITIONS,
+  fallback: 'cursor',
+});
+
 
 /**
  * Numeric factor of the current line width.

@@ -1,26 +1,87 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import { useGraphContext } from "../../../context/GraphContext";
+import { getScreenPosition, validateActiveFunction } from "../../../utils/landmarkUtils";
+
+// Distance between the toast and the graph border, in px
+const EDGE_PADDING = 8;
+// Distance between the toast and the cursor point, in px
+const CURSOR_GAP = 14;
+
+/** The active function's cursor, or null if it is not visible on the chart. */
+function getVisibleCursor(functionDefinitions, cursorCoords, graphBounds) {
+  const { valid, cursorCoord } = validateActiveFunction(functionDefinitions, cursorCoords);
+  if (!valid) return null;
+
+  const x = Number(cursorCoord.x);
+  const y = Number(cursorCoord.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (y < graphBounds.yMin || y > graphBounds.yMax) return null;
+
+  return { x, y };
+}
+
+/**
+ * Screen position for a toast centered above the cursor, kept fully inside the
+ * graph area. Shifted sideways at the left/right border, flipped below the
+ * cursor when there is no room above. Returns null if there is nothing to
+ * anchor to, in which case the toast falls back to the corner.
+ */
+function computeCursorPlacement(toast, cursor, graphBounds) {
+  const chart = document.getElementById("jxgbox");
+  if (!toast || !chart || !cursor) return null;
+
+  const chartRect = chart.getBoundingClientRect();
+  const { width, height } = toast.getBoundingClientRect();
+  const { x: cx, y: cy } = getScreenPosition(cursor.x, cursor.y, graphBounds);
+
+  const minLeft = chartRect.left + EDGE_PADDING;
+  const maxLeft = chartRect.right - EDGE_PADDING - width;
+  const minTop = chartRect.top + EDGE_PADDING;
+  const maxTop = chartRect.bottom - EDGE_PADDING - height;
+
+  let top = cy - CURSOR_GAP - height;
+  if (top < minTop) {
+    top = cy + CURSOR_GAP;
+  }
+  top = Math.max(minTop, Math.min(top, maxTop));
+
+  // If the toast is wider than the chart, pin it to the left border
+  const left = Math.max(minLeft, Math.min(cx - width / 2, maxLeft));
+
+  return { left, top };
+}
+
+function sameBounds(a, b) {
+  return a.xMin === b.xMin && a.xMax === b.xMax && a.yMin === b.yMin && a.yMax === b.yMax;
+}
 
 const InfoToast = ({
   message,
   isVisible,
   onClose,
   timeout = 10000,
-  position = "fixed", // "fixed" (default) or "cursor"
-  cursorPosition = { x: 0, y: 0 }
+  position = "cursor", // "cursor" or "corner"
+  dismissOnGraphInteraction = false,
+  showId = 0,
 }) => {
+  const { functionDefinitions, cursorCoords, graphBounds } = useGraphContext();
   const [shouldRender, setShouldRender] = useState(false);
-  const [cursorStyles, setCursorStyles] = useState({});
+  const [placement, setPlacement] = useState(null);
+  const [resizeTick, setResizeTick] = useState(0);
   const toastRef = useRef(null);
+  const snapshotRef = useRef(null);
+
+  // The provider recreates onClose on every render; keep the latest one in a
+  // ref so it does not restart the auto-hide timer.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (isVisible && message) {
       setShouldRender(true);
-      // console.log(timeout)
       // Auto-hide after specified timeout (default 10 seconds)
       const timer = setTimeout(() => {
-        if (onClose) {
-          onClose();
-        }
+        onCloseRef.current?.();
       }, timeout);
 
       return () => clearTimeout(timer);
@@ -32,94 +93,78 @@ const InfoToast = ({
 
       return () => clearTimeout(timer);
     }
-  }, [isVisible, message, onClose, timeout]);
+  }, [isVisible, message, timeout, showId]);
 
-  // Calculate cursor position immediately when position changes
-  useEffect(() => {
-    if (position === "cursor") {
-      const { x, y } = cursorPosition;
+  const cursor = getVisibleCursor(functionDefinitions, cursorCoords, graphBounds);
+  const cursorX = cursor?.x;
+  const cursorY = cursor?.y;
 
-      // Add offset to position tooltip above and to the right of cursor
-      const offsetX = 15;
-      const offsetY = -45;
-
-      // Initial positioning (will be refined after mount)
-      setCursorStyles({
-        left: `${x + offsetX}px`,
-        top: `${y + offsetY}px`,
-        position: 'fixed',
-        zIndex: 1000,
-        pointerEvents: 'none'
-      });
-    } else {
-      setCursorStyles({});
+  // Follow the cursor. Runs before paint, so the toast never flashes at a
+  // wrong position.
+  useLayoutEffect(() => {
+    if (position !== "cursor" || !shouldRender) {
+      setPlacement(null);
+      return;
     }
-  }, [position, cursorPosition]);
+    const anchor = cursorX === undefined ? null : { x: cursorX, y: cursorY };
+    setPlacement(computeCursorPlacement(toastRef.current, anchor, graphBounds));
+  }, [position, shouldRender, message, cursorX, cursorY, graphBounds, resizeTick]);
 
-  // Refine position after toast is mounted to prevent off-screen positioning
   useEffect(() => {
-    if (isVisible && position === "cursor" && toastRef.current && shouldRender) {
-      const toast = toastRef.current;
-      const { x, y } = cursorPosition;
+    if (position !== "cursor" || !shouldRender) return;
+    const onResize = () => setResizeTick((tick) => tick + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [position, shouldRender]);
 
-      // Add offset to position tooltip above and to the right of cursor
-      const offsetX = 15;
-      const offsetY = -45;
-
-      // Get viewport dimensions to prevent tooltip from going off-screen
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const toastRect = toast.getBoundingClientRect();
-
-      let finalX = x + offsetX;
-      let finalY = y + offsetY;
-
-      // Adjust if toast would go off right edge
-      if (finalX + toastRect.width > viewportWidth - 10) {
-        finalX = x - toastRect.width - offsetX;
-      }
-
-      // Adjust if toast would go off top edge
-      if (finalY < 10) {
-        finalY = y + Math.abs(offsetY) + 10;
-      }
-
-      // Update styles with refined position
-      setCursorStyles({
-        left: `${finalX}px`,
-        top: `${finalY}px`,
-        position: 'fixed',
-        zIndex: 1000,
-        pointerEvents: 'none'
-      });
+  // Snapshot toasts (coordinates, bounds) disappear on the next graph
+  // interaction instead of travelling along with stale values.
+  const activeCursorX = validateActiveFunction(functionDefinitions, cursorCoords).cursorCoord?.x;
+  useEffect(() => {
+    if (!dismissOnGraphInteraction || !isVisible) {
+      snapshotRef.current = null;
+      return;
     }
-  }, [isVisible, position, cursorPosition, shouldRender]);
+    const snapshot = snapshotRef.current;
+    if (!snapshot || snapshot.showId !== showId) {
+      snapshotRef.current = { showId, cursorX: activeCursorX, bounds: graphBounds };
+      return;
+    }
+    if (snapshot.cursorX !== activeCursorX || !sameBounds(snapshot.bounds, graphBounds)) {
+      snapshotRef.current = null;
+      onCloseRef.current?.();
+    }
+  }, [dismissOnGraphInteraction, isVisible, showId, activeCursorX, graphBounds]);
 
   if (!shouldRender) {
     return null;
   }
 
-  // Define positioning classes based on position prop
-  const positionClasses = position === "cursor"
-    ? "fixed z-[1000]" // High z-index for cursor positioning
-    : "fixed top-24 right-4 z-40"; // Default top-right positioning
+  // w-max below: the width must not depend on where the toast sits, otherwise
+  // the size measured for the placement would be stale after moving it.
 
-  // Merge cursor styles with default styles
-  const finalStyles = position === "cursor" ? cursorStyles : {};
+  // Without a visible cursor the toast falls back to the corner
+  const atCursor = position === "cursor" && placement !== null;
+
+  const positionClasses = atCursor
+    ? "fixed z-40 pointer-events-none transition-opacity"
+    : "fixed top-24 right-4 z-40 transition-all";
+
+  const animationClasses = isVisible
+    ? "opacity-100 translate-y-0"
+    : atCursor ? "opacity-0" : "opacity-0 -translate-y-2";
+
+  const style = atCursor ? { left: `${placement.left}px`, top: `${placement.top}px` } : undefined;
 
   return (
     <div
       ref={toastRef}
-      className={`${positionClasses} max-w-sm transition-all duration-300 ease-in-out ${
-        isVisible
-          ? "opacity-100 translate-y-0"
-          : "opacity-0 -translate-y-2"
-      }`}
-      style={finalStyles}
+      className={`${positionClasses} w-max max-w-sm duration-300 ease-in-out ${animationClasses}`}
+      style={style}
       aria-hidden="true"
       role="presentation"
     >
-      <div className="bg-background border border-border rounded-lg shadow-lg p-4">
+      <div className="bg-background border border-border rounded-lg shadow-lg px-3 py-2">
         <div className="text-sm text-txt whitespace-pre-line">
           {message}
         </div>
