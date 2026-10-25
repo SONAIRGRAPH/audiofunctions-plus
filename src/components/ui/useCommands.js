@@ -241,12 +241,14 @@ export function useCommands() {
       // message += `X = ${roundedX}, Y = ${roundedY}, [${functionName}]`;
       message += `(${roundedX}, ${roundedY}) - ${functionName}`;
 
-      return message;
+      return { functionId: coord.functionId, text: message };
     });
 
-    const message = messages.join('\n');
+    const message = messages.map(m => m.text).join('\n');
+    // One toast per cursor, each with its own function's values
+    const perCursor = Object.fromEntries(messages.map(m => [m.functionId, m.text]));
     announce(`${message}`);
-    showInfoToast(`${message}`, undefined, { dismissOnGraphInteraction: true });
+    showInfoToast(`${message}`, undefined, { perCursor, dismissOnGraphInteraction: true });
   };
 
   const showViewBounds = () => {
