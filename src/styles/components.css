@@ -286,3 +286,128 @@
   position: relative;
   z-index: 50;
 }
+
+
+/* ---------------------------------------------------------------------------
+   Appearance dialog
+   Option cards and segments are styled labels around a visually hidden
+   native radio. The selected state is marked by border, weight and a check
+   icon -- never by color alone.
+   --------------------------------------------------------------------------- */
+.customize-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--af-text-title);
+}
+
+.customize-legend {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--af-text-title);
+}
+
+.customize-hint {
+  font-size: 0.875rem;
+  color: var(--af-text-subtitle);
+}
+
+.customize-divider {
+  border: none;
+  border-top: var(--af-border-width) solid var(--af-border);
+}
+
+.option-card,
+.option-segment {
+  /* Anchors the sr-only radio, so focusing it does not scroll the dialog */
+  position: relative;
+  border: var(--af-border-width) solid var(--af-border);
+  border-radius: var(--af-radius-lg);
+  background-color: var(--af-bg);
+  color: var(--af-text);
+  cursor: pointer;
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.option-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.option-card:hover,
+.option-segment:hover {
+  border-color: var(--af-border-hover);
+}
+
+.option-card:has(input:checked),
+.option-segment:has(input:checked) {
+  border-color: var(--af-primary);
+  background-color: var(--af-surface);
+  color: var(--af-text-title);
+  font-weight: 600;
+}
+
+.option-card:has(input:focus-visible),
+.option-segment:has(input:focus-visible) {
+  outline: var(--af-ring) solid var(--af-border-focus);
+  outline-offset: 2px;
+}
+
+/* Sample line below the font dropdown, set in the selected font. Contains
+   the characters that are easy to confuse in a math app. */
+.font-sample {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--af-radius-md);
+  background-color: var(--af-surface);
+  color: var(--af-text);
+  font-size: 1.125rem;
+}
+
+/* Miniature graph drawn with the tokens of the theme it previews. The
+   element carries its own data-theme, so theme.css resolves the variables
+   for that theme instead of the active one. */
+.theme-preview {
+  display: block;
+  flex: 1;
+  height: 2.5rem;
+  overflow: hidden;
+  border: 1px solid var(--af-border);
+  border-radius: var(--af-radius-md);
+  background-color: var(--af-bg);
+}
+
+.theme-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.theme-preview-grid {
+  fill: none;
+  stroke: var(--af-graph-grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.theme-preview-curve {
+  fill: none;
+  stroke: var(--af-curve-1);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.theme-preview-cursor {
+  fill: var(--af-cursor-fill);
+  stroke: var(--af-cursor-stroke);
+  stroke-width: 1;
+}

@@ -12,6 +12,7 @@ import WelcomeDialog from "../components/ui/dialogs/WelcomeDialog";
 import AboutDialog from "../components/ui/dialogs/AboutDialog";
 import EditLandmarkDialog from "../components/ui/dialogs/EditLandmarkDialog";
 import NavigationHelpDialog from "../components/ui/dialogs/NavigationHelpDialog";
+import CustomizationDialog from "../components/ui/dialogs/CustomizationDialog";
 
 const DialogContext = createContext();
 
@@ -102,6 +103,12 @@ export function DialogProvider({ children }) {
 
       <NavigationHelpDialog
         isOpen={dialog.type === "navigation-help"}
+        onClose={closeDialog}
+        {...dialog.props}
+      />
+
+      <CustomizationDialog
+        isOpen={dialog.type === "customization"}
         onClose={closeDialog}
         {...dialog.props}
       />

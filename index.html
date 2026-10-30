@@ -26,7 +26,9 @@
             fallback: 'system'
           },
           { key: 'lineWidth', attr: 'data-line-width', values: ['auto', 'thin', 'normal', 'thick', 'x-thick'], fallback: 'auto' },
-          { key: 'textSize', attr: 'data-text-size', values: ['auto', 'sm', 'normal', 'lg', 'xl'], fallback: 'auto' }
+          { key: 'textSize', attr: 'data-text-size', values: ['auto', 'sm', 'normal', 'lg', 'xl'], fallback: 'auto' },
+          { key: 'font', attr: 'data-font', values: ['auto', 'system', 'inter', 'atkinson', 'lexend', 'andika', 'comic-neue', 'opendyslexic'], fallback: 'auto' },
+          { key: 'spacing', attr: 'data-spacing', values: ['auto', 'normal', 'wide'], fallback: 'auto' }
         ];
         for (var i = 0; i < prefs.length; i++) {
           var pref = prefs[i];

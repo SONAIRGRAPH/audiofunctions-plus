@@ -1,5 +1,5 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
-  SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
+  SwatchBook, SlidersHorizontal, Plus, Edit,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { useMixer } from "../../context/MixerContext";
@@ -9,16 +9,6 @@ import { THEMES, setTheme } from "../../utils/theme";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useCommands } from "./useCommands";
 import { HOTKEYS, hotkeyFor, functionHotkey, landmarkHotkey } from "./hotkeys";
-
-// Icon per theme. A new theme only needs one line here -- label, keywords and
-// announcement live in the THEMES registry in utils/theme.js.
-const THEME_ICONS = {
-  system: SunMoon,
-  light: Sun,
-  dark: Moon,
-  "high-contrast": Contrast,
-  "deuteranopia-protanopia-friendly": Eye,
-};
 
 // The palette expects a list of search aliases. Empty entries are dropped: several
 // keyword lists are assembled from optional values (landmark label, shortcut).
@@ -389,22 +379,31 @@ export const usePaletteItems = () => {
     icon: <Move />,
   },
 
-  // Change theme
+  // Customization: the themes as quick switches, plus the full dialog
   {
-    id: "change-theme",
-    label: "Change Theme",
-    keywords: toKeywords("theme, appearance, color, style, visual, dark, light, contrast, accessibility, colorblind"),
+    id: "customization",
+    label: "Customization",
+    keywords: toKeywords("customization, customize, appearance, theme, preset, color, style, visual, dark, light, contrast, accessibility, colorblind, settings, preferences"),
     icon: <SwatchBook />,
-    children: THEMES.map((theme) => {
-      const Icon = THEME_ICONS[theme.id] ?? SwatchBook;
-      return {
-        id: `${theme.id}-theme`,
-        label: theme.label,
-        keywords: toKeywords(theme.keywords),
-        perform: () => { setTheme(theme.id); announce(theme.announcement); },
-        icon: <Icon />,
-      };
-    }),
+    children: [
+      ...THEMES.map((theme) => {
+        const Icon = theme.icon;
+        return {
+          id: `${theme.id}-theme`,
+          label: theme.label,
+          keywords: toKeywords(theme.keywords),
+          perform: () => { setTheme(theme.id); announce(theme.announcement); },
+          icon: <Icon />,
+        };
+      }),
+      {
+        id: "customize-appearance",
+        label: "Customize Appearance",
+        keywords: toKeywords("customize, appearance, settings, preferences, palette, line, width, thickness, text, size, font, toast, shortcut, highlight"),
+        perform: () => openDialog("customization"),
+        icon: <SlidersHorizontal />,
+      },
+    ],
   },
 
   // Import/Export - only show if not in read-only or full-restriction mode

@@ -3,9 +3,7 @@
  *
  * A theme consists of exactly two parts:
  *   1. a block in src/styles/theme.css
- *   2. an entry in THEMES below
- * The command palette additionally needs an icon in THEME_ICONS in
- * components/ui/usePaletteItems.jsx.
+ *   2. an entry in THEMES below, including its icon
  *
  * A theme is a color theme -- src/styles/theme.css holds nothing but colors and
  * dimensions. Anything else a theme wants goes into its `prefs` field, which
@@ -15,6 +13,7 @@
  * live in prefs.js and are shared with the other display preferences.
  */
 
+import { SunMoon, Sun, Moon, Contrast, Eye } from 'lucide-react';
 import { definePreference, applyStoredPreferences, setPresetSource } from './prefs';
 
 /**
@@ -28,31 +27,43 @@ import { definePreference, applyStoredPreferences, setPresetSource } from './pre
  * effect while that axis is set to 'auto'; a value the user picked deliberately
  * is never overwritten by a theme change.
  *
- * @type {{id: string, label: string, keywords: string, announcement: string,
- *         prefs?: Record<string, string>}[]}
+ * `shortLabel` names the theme without the word "Theme", for the appearance
+ * dialog's cards. `icon` is a lucide component, shown in the command palette
+ * and the appearance dialog.
+ *
+ * @type {{id: string, label: string, shortLabel: string, icon: import('react').ComponentType,
+ *         keywords: string, announcement: string, prefs?: Record<string, string>}[]}
  */
 export const THEMES = [
   {
     id: 'system',
     label: 'Use System Theme',
+    shortLabel: 'System',
+    icon: SunMoon,
     keywords: 'theme, system, automatic, os, operating, preference, default, follow',
     announcement: 'Theme set to system preference',
   },
   {
     id: 'light',
     label: 'Light Theme',
+    shortLabel: 'Light',
+    icon: Sun,
     keywords: 'theme, light, bright, white, day, normal, standard',
     announcement: 'Theme set to light mode',
   },
   {
     id: 'dark',
     label: 'Dark Theme',
+    shortLabel: 'Dark',
+    icon: Moon,
     keywords: 'theme, dark, night, black, low, light, eyes',
     announcement: 'Theme set to dark mode',
   },
   {
     id: 'high-contrast',
     label: 'High Contrast Theme',
+    shortLabel: 'High Contrast',
+    icon: Contrast,
     keywords: 'theme, contrast, high, accessibility, vision, impaired, clear, sharp, bold',
     announcement: 'Theme set to high contrast mode',
     prefs: {
@@ -68,6 +79,8 @@ export const THEMES = [
   {
     id: 'deuteranopia-protanopia-friendly',
     label: 'Deuteranopia/Protanopia Friendly Theme',
+    shortLabel: 'Deuteranopia/Protanopia',
+    icon: Eye,
     keywords:
       'theme, deuteranopia, protanopia, colorblind, accessibility, vision, friendly, color, blind, impaired, green, red',
     announcement: 'Theme set to deuteranopia/protanopia friendly mode',

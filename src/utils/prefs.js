@@ -113,15 +113,39 @@ export function applyStoredPreferences() {
   registry.forEach((preference) => preference.apply());
 }
 
+/**
+ * Every stored preference, keyed by its localStorage key. Taken when the
+ * appearance dialog opens, so Cancel can put everything back.
+ * @returns {Record<string, string>}
+ */
+export function getPreferenceSnapshot() {
+  return Object.fromEntries(registry.map((preference) => [preference.key, preference.get()]));
+}
+
+/** @param {Record<string, string>} snapshot from getPreferenceSnapshot() */
+export function restorePreferenceSnapshot(snapshot) {
+  registry.forEach((preference) => {
+    if (snapshot[preference.key] !== undefined) preference.set(snapshot[preference.key]);
+  });
+  // Axes on 'auto' resolve against the theme, which may have changed as well
+  applyStoredPreferences();
+}
+
+/**
+ * What the active theme suggests for an axis, or undefined if it suggests
+ * nothing. Lets the appearance dialog label 'auto' as "Theme default (…)".
+ * @param {string} axisKey
+ */
+export function getPreset(axisKey) {
+  return readPreset(axisKey);
+}
+
 /* ---------------------------------------------------------------------------
    The theme independent axes.
 
    Both are wired end to end: values are persisted, the attribute is set and
-   theme.css reacts to it. No UI exposes them yet, so they are set from the
-   console:
-
-     document.documentElement.dataset.lineWidth = 'x-thick'
-     document.documentElement.dataset.textSize  = 'xl'
+   theme.css reacts to it. The user sets them in the appearance dialog
+   (components/ui/dialogs/CustomizationDialog.jsx), like every axis below.
 
    'auto' means "whatever the theme suggests" and carries no resolve(): both are
    visible at the first paint, so the cascade resolves them, not this file (see
@@ -149,6 +173,26 @@ export const textSizePref = definePreference({
   fallback: 'auto',
 });
 
+/** Reading fonts, self-hosted through Fontsource (imported in main.jsx). */
+export const FONTS = ['auto', 'system', 'inter', 'atkinson', 'lexend', 'andika', 'comic-neue', 'opendyslexic'];
+
+export const fontPref = definePreference({
+  key: 'font',
+  attr: 'data-font',
+  values: FONTS,
+  fallback: 'auto',
+});
+
+/** Text spacing. 'wide' uses the values of WCAG 2.2 SC 1.4.12. */
+export const SPACINGS = ['auto', 'normal', 'wide'];
+
+export const spacingPref = definePreference({
+  key: 'spacing',
+  attr: 'data-spacing',
+  values: SPACINGS,
+  fallback: 'auto',
+});
+
 /* ---------------------------------------------------------------------------
    Shortcut position in the command palette
 
@@ -158,10 +202,8 @@ export const textSizePref = definePreference({
    theme (the prefs field in THEMES), anything else is a deliberate choice by the
    user and survives a theme change untouched.
 
-   Like the two axes above it has no UI yet -- the settings menu that will own
-   all three is still to come, and until then picking a theme is the only thing
-   that moves it. Labels and screen reader announcements are that menu's job and
-   get written there, for every axis at once and in one vocabulary.
+   Labels and screen reader announcements live in the appearance dialog, for
+   every axis at once and in one vocabulary.
 
    Deliberately absent from the inline script in index.html: that script guards
    the first paint, and the palette is closed at that point.
@@ -209,8 +251,8 @@ export const highlightStylePref = definePreference({
 
    Where info toasts appear: centered above the graph cursor (falling back to
    the corner when the cursor is not visible), or always in the fixed corner.
-   Read by InfoToastContext each time a toast is shown. No UI yet, set from the
-   console with toastPositionPref.set('corner') or via localStorage.
+   Read by InfoToastContext each time a toast is shown. Has no 'auto': no
+   theme has an opinion on it.
    --------------------------------------------------------------------------- */
 
 export const TOAST_POSITIONS = ['cursor', 'corner'];
