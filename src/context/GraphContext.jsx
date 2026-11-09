@@ -34,6 +34,17 @@ export const GraphContextProvider = ({ children }) => {
   const [evaluateFunctionAt, setEvaluateFunctionAt] = useState(null);
   const [stepSize, setStepSize] = useState(0.25); // Default value 0.5
   const [explorationMode, setExplorationMode] = useState("none"); // "none", "mouse", "keyboard_stepwise", "keyboard_smooth", "batch"
+  // Soft toggle for mouse-driven graph exploration (cursor follow + sonification on move).
+  // Default true keeps the current behaviour. Toggle via the `toggle-mouse-exploration`
+  // command in useCommands — bind that id in usePaletteItems (and optionally hotkeys.js)
+  // when exposing it in the command palette; no palette entry is wired yet.
+  const [mouseExplorationEnabled, setMouseExplorationEnabledState] = useState(true);
+  const mouseExplorationEnabledRef = useRef(true);
+  const setMouseExplorationEnabled = (next) => {
+    const value = typeof next === "function" ? next(mouseExplorationEnabledRef.current) : next;
+    mouseExplorationEnabledRef.current = value;
+    setMouseExplorationEnabledState(value);
+  };
   const [isShiftPressed, setIsShiftPressed] = useState(false); // Track Shift key state
   const [discreteBatchValidStartX, setDiscreteBatchValidStartX] = useState(null); // Valid start X position for discrete batch sonification
   const inputRefs = {
@@ -185,6 +196,9 @@ export const GraphContextProvider = ({ children }) => {
         setStepSize,
         explorationMode,
         setExplorationMode,
+        mouseExplorationEnabled,
+        setMouseExplorationEnabled,
+        mouseExplorationEnabledRef,
         isShiftPressed,
         setIsShiftPressed,
         discreteBatchValidStartX,

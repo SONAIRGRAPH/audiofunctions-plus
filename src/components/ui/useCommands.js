@@ -132,6 +132,8 @@ export function useCommands() {
     setStepSize,
     functionDefinitions,
     setFunctionDefinitions,
+    mouseExplorationEnabled,
+    setMouseExplorationEnabled,
   } = useGraphContext();
 
   const { announce } = useAnnouncement();
@@ -321,10 +323,26 @@ export function useCommands() {
     showInfoToast("Default view", 1500);
   };
 
+  /**
+   * Soft-toggles mouse graph exploration (cursor follow + sonification on move).
+   * Ready for the command palette: add an item in usePaletteItems with
+   * `id: "toggle-mouse-exploration"` and `perform: run("toggle-mouse-exploration")`
+   * (optionally also an entry in hotkeys.js). Default remains enabled.
+   */
+  const toggleMouseExploration = () => {
+    const next = !mouseExplorationEnabled;
+    setMouseExplorationEnabled(next);
+    const message = next ? "Mouse exploration enabled" : "Mouse exploration disabled";
+    announce(message);
+    showInfoToast(message, 1500);
+  };
+
   // --- the commands ---------------------------------------------------------
 
   return {
     'toggle-audio': toggleAudio,
+    // Soft toggle for mouse exploration — bind in usePaletteItems when exposing UI.
+    'toggle-mouse-exploration': toggleMouseExploration,
     'play-function': () => setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })),
     // GraphView renders "play_space" differently from "play".
     'play-function-space': () => setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active })),
