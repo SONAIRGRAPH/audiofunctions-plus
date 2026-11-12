@@ -135,7 +135,7 @@ export const usePaletteItems = () => {
 
         {
           id: "toggle-sonification-type",
-          label: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Continuous' : 'Discrete'}`,
+          label: `Change Sonification-Instrument to ${currentSonificationType === 'discrete' ? 'Clarinet' : 'Guitar'}`,
           keywords: toKeywords("sonification, instrument, discrete, continuous, guitar, clarinet, toggle, sound, type, mode, timbre"),
           perform: run("toggle-sonification-type"),
           icon: <Music />,

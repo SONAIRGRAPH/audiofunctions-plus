@@ -278,14 +278,14 @@ export function useCommands() {
 
     const currentInstrument = getFunctionInstrumentN(functionDefinitions, activeIndex);
     const newInstrument = currentInstrument === 'guitar' ? 'clarinet' : 'guitar';
-    const sonificationType = newInstrument === 'guitar' ? 'discrete' : 'continuous';
+    // const sonificationType = newInstrument === 'guitar' ? 'discrete' : 'continuous';
 
     setFunctionDefinitions(functionDefinitions.map((func) =>
       setFunctionInstrumentN([func], 0, newInstrument)[0]
     ));
 
-    announce(`Sonification type changed to ${sonificationType}`);
-    showInfoToast(`Sonification type: ${sonificationType}`, 1500);
+    announce(`Sonification instrument changed to ${newInstrument}`);
+    showInfoToast(`Sonification type: ${newInstrument}`, 1500);
   };
 
   /** Both movement settings report their new value the same way. */
