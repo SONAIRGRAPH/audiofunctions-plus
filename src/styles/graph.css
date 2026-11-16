@@ -37,10 +37,15 @@ path[id*="_ticks_"] {
   stroke: var(--af-graph-axis);
 }
 
+/* Axis numbers. Placement is left to JSXGraph: it aligns each label with
+   the text-anchor / dy attributes (x: centered below the tick, y: right of
+   it, vertically centered). Setting text-anchor or dominant-baseline here
+   would override those attributes and shift every label off its tick.
+   Size: set in GraphView in rem, so it follows the text size preference. */
 text.JXGtext {
   fill: var(--af-graph-text);
-  dominant-baseline: middle;
-  text-anchor: end;
+  font-family: var(--af-font);
+  font-variant-numeric: tabular-nums;
 }
 
 .grid {

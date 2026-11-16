@@ -18,6 +18,16 @@ const math = create(all, config)
 // Number of x axis divisions (can be made configurable)
 const X_AXIS_DIVISIONS = 10;
 
+// Axis numbers: rem instead of JSXGraph's 12px, so they follow the text size
+// preference without rebuilding the board (0.75rem = 12px at the default
+// size). The empty default style drops JSXGraph's inline Arial, so the font
+// preference from graph.css applies. Placement keeps JSXGraph's defaults.
+const AXIS_LABEL_STYLE = Object.freeze({
+  fontSize: 1.1,
+  fontUnit: "rem",
+  cssDefaultStyle: "",
+});
+
 // txtraw is a string of the form [[expr_1,ineq_1],[expr_2,ineq_2],..,[expr_n,ineq_n]]
 // where expr_i is an expression in the variable x that defines a function in the interval defined by ineq_i
 // for instance [[x+5,x < -4],[x^2,-4<=x < 1],[x-2,1<=x < 3],[5,x==3],[x-2,3 < x < 5],[3,5<= x]]
@@ -57,11 +67,11 @@ function createEndPoints(func,board,pointSize){
     const endpoints = []; // the endpoints of the intervals
     for (i=0;i< l.length;i++){
         ineq = transformAssingnments(l[i].items[1]); // the inequality or equality of ith item, we change assignments to equalities
-        fn = l[i].items[0]; // the expression of the function in the ith item 
+        fn = l[i].items[0]; // the expression of the function in the ith item
         if (fn.type == "AssignmentNode"){ // if it is an assignment, we get the expression of the assignment
           fn=fn.value;
         }
-        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment  
+        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment
           fn=fn.expr;
         }
         console.log("Processing item ", i, " with function: ", fn, " and condition: ", ineq.toString());
@@ -342,6 +352,15 @@ const GraphView = () => {
           minorHeight: 3 * lineWidthScale,
           ticksDistance: stepSize, // Tick-Abstand anpassen
         },
+      },
+      // Tick labels must go here, not into `axis`: initBoard merges the
+      // board's defaultAxes (fontSize 12) after `axis`, which would override
+      // the size but keep the unit -- 12rem.
+      // Offsets in px (JSXGraph default: x 3, y 6), a bit wider and growing
+      // with the line width, since the tick marks get longer with it.
+      defaultAxes: {
+        x: { ticks: { label: { ...AXIS_LABEL_STYLE, offset: [0, -(7 + 3 * lineWidthScale)] } } },
+        y: { ticks: { label: { ...AXIS_LABEL_STYLE, offset: [-(10 + 3 * lineWidthScale), 0] } } },
       },
       zoom: { enabled: false, needShift: false },
       pan: { enabled: false, needShift: false, needTwoFingers: true},
@@ -1057,7 +1076,7 @@ const GraphView = () => {
   useEffect(() => {
     // Detect Firefox
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    
+
     if (isFirefox) {
       // Skip resize handling for Firefox to avoid JSXGraph bugs
       return;
@@ -1074,7 +1093,7 @@ const GraphView = () => {
             const container = graphContainerRef.current;
             const width = container.clientWidth;
             const height = container.clientHeight;
-            
+
             // Only resize if dimensions are valid
             if (width > 0 && height > 0 && !isNaN(width) && !isNaN(height)) {
               boardRef.current.resizeContainer();
