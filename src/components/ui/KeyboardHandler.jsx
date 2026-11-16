@@ -163,7 +163,7 @@ export default function KeyboardHandler({ items }) {
         // No mute check here: the mixer silences its bus when audio is off.
         if (passed.length > 0) {
             try {
-                await audioSampleManager.playSample("notification", { volume: -15 });
+                await audioSampleManager.playSample("notification");
             } catch (error) {
                 console.warn("Failed to play notification sound:", error);
             }

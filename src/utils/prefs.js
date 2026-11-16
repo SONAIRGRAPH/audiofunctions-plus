@@ -36,7 +36,7 @@ export function setPresetSource(lookup) {
   readPreset = typeof lookup === 'function' ? lookup : () => undefined;
 }
 
-function readStored(key) {
+export function readStored(key) {
   try {
     return localStorage.getItem(key);
   } catch (error) {
@@ -45,7 +45,7 @@ function readStored(key) {
   }
 }
 
-function writeStored(key, value) {
+export function writeStored(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (error) {

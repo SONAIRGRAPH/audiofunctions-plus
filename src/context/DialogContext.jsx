@@ -13,6 +13,7 @@ import AboutDialog from "../components/ui/dialogs/AboutDialog";
 import EditLandmarkDialog from "../components/ui/dialogs/EditLandmarkDialog";
 import NavigationHelpDialog from "../components/ui/dialogs/NavigationHelpDialog";
 import CustomizationDialog from "../components/ui/dialogs/CustomizationDialog";
+import MixerDialog from "../components/ui/dialogs/MixerDialog";
 
 const DialogContext = createContext();
 
@@ -109,6 +110,12 @@ export function DialogProvider({ children }) {
 
       <CustomizationDialog
         isOpen={dialog.type === "customization"}
+        onClose={closeDialog}
+        {...dialog.props}
+      />
+
+      <MixerDialog
+        isOpen={dialog.type === "mixer"}
         onClose={closeDialog}
         {...dialog.props}
       />

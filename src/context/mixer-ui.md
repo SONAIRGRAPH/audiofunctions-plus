@@ -11,7 +11,19 @@ Related files:
 - Audio engine (do not import from UI): [`../audio/mixerBus.js`](../audio/mixerBus.js)
 - Provider is already wrapped in [`../App.jsx`](../App.jsx)
 
-There is **no mixer panel in the app yet**. The API is ready and already wired to sonification.
+The user-facing panel is [`../components/ui/dialogs/MixerDialog.jsx`](../components/ui/dialogs/MixerDialog.jsx), opened from the command palette (Customization → Audio Mixer).
+
+---
+
+## Catalog, saving and preview
+
+- **Catalog** — [`../audio/mixerCatalog.js`](../audio/mixerCatalog.js) lists every channel that is not a function tone (tick, pink noise, all `sample:*`) with a readable label, description and built-in level. `MixerProvider` creates their state on start (`mixerBus.presetChannel`), so they show up in the dialog and saved levels apply before a sound has played once. New earcon? Add it to the catalog.
+- **Overall volume** — `master.volume` / `setMasterVolume(gain)` scales all three groups at once (folded into each group gain). It has no mute; on/off stays with **P**.
+- **Volumes and sliders** — every volume is a linear gain relative to the source's built-in level: `1` = as designed, `0` = silent, above `1` = boost. The dialog sliders are linear in dB ([`../audio/fader.js`](../audio/fader.js)): catalog sounds start at their built-in level (`baseDb` in the catalog, e.g. pink noise −36 dB → 40 %) and reach 0 dB at the top; groups, overall volume and function tones start at 83 % with +12 dB headroom. A limiter before the speakers (GraphSonification) catches clipping from boosts.
+- **Saving** — [`../audio/mixerSettings.js`](../audio/mixerSettings.js). One JSON value in localStorage under `audioMixer`: overall volume, group levels, catalog channel levels, `audioModality`, `audioIdleTimeoutSec`, `clarinetOctave`. Loaded on start, saved 300 ms after every change and on `pagehide`. `instrument:*` channels are never saved — their ids mean something else in every graph.
+- **Snapshot** — `getSettingsSnapshot()` / `restoreSettingsSnapshot()` / `resetToDefaults()` back Cancel and Reset in the dialog.
+- **Built-in levels** — `baseDb` in the catalog is the only place an earcon's, the tick's or the pink noise's loudness is set. `audioSampleManager.playSample()` takes no volume; it always uses the catalog level. To make a sound louder by design, change it there.
+- **Preview** — `previewChannel(channelId)` plays a short sample of any channel with `channel.previewable`. Engines register previews via `mixerBus.registerPreview`: `audioSampleManager` for every catalog sample, `GraphSonification` for tick, pink noise and every function (one 0.8 s tone with the function's instrument, mid-range pitch; inactive functions get a temporary instrument). The output opens for ~1.5 s even while a dialog is open or audio is off, and every other channel stays silent meanwhile (`mixerBus.setPreviewSolo(channelId)`).
 
 ---
 
@@ -178,7 +190,7 @@ Sample labels are technical. You may map them to friendlier copy in the UI.
   label: "Function 1",      // show this to the user
   groupId: "instruments",   // which group section this belongs under
   muted: false,
-  volume: 1                 // linear 0..1 (1 = full, 0 = silent)
+  volume: 1                 // linear gain (1 = built-in level, 0 = silent, >1 = boost)
 }
 ```
 
@@ -197,9 +209,9 @@ const {
   mixerState,          // full snapshot { groups, channels }
   groups,              // same as mixerState.groups
   channels,            // same as mixerState.channels
-  setGroupVolume,      // (groupId, 0..1) => void
+  setGroupVolume,      // (groupId, gain) => void
   setGroupMuted,       // (groupId, true|false) => void
-  setChannelVolume,    // (channelId, 0..1) => void
+  setChannelVolume,    // (channelId, gain) => void
   setChannelMuted,     // (channelId, true|false) => void
   MIXER_GROUPS,        // { earcons, instruments, noise }
   MIXER_GROUP_LABELS,  // { earcons: "Earcons", ... }
@@ -234,7 +246,7 @@ Yes. `MixerProvider` subscribes to the mixer bus. When groups/channels are creat
 
 1. **Mute/volume only.** Do not start/stop sonification, landmarks, or navigation from the mixer.
 2. **Master vs faders.** `setAudioModality` / `setIsAudioEnabled` are the master gate. Mixer faders are per group/channel and do not replace **P**.
-3. **Volumes are 0–1**, not dB. Values outside that range are clamped.
+3. **Volumes are linear gains**, not dB; `1` is the built-in level. Use `gainAt` / `positionOf` from `audio/fader.js` for sliders. Saved values are clamped to each slider's range.
 4. **No Tone.js in UI.** Do not import `mixerBus` or create Gain nodes. Call the setters.
 5. **Channels come and go.** Prefer group controls for a first UI. Key lists on `ch.id`, not array index.
 6. **Mute/volume can survive** a temporary audio rebuild. A channel may disappear from the live graph and reappear later with the same settings.

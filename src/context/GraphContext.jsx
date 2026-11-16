@@ -136,7 +136,7 @@ export const GraphContextProvider = ({ children }) => {
     // Play deny earcon if bounds were corrected (master gain mutes it when audio is off)
     if (boundsWereCorrected) {
       try {
-        audioSampleManager.playSample("deny", { volume: -15 });
+        audioSampleManager.playSample("deny");
       } catch (error) {
         console.warn("Could not play deny earcon:", error);
       }

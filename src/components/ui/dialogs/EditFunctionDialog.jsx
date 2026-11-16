@@ -7,6 +7,7 @@ import {useInfoToast} from "../../../context/InfoToastContext"
 import { useAnnouncement } from "../../../context/AnnouncementContext";
 import {
   getFunctionCount,
+  nextFunctionName,
   getFunctionDefN,
   getFunctionTypeN,
   getFunctionInstrumentN,
@@ -56,7 +57,7 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
 
     const newFunction = {
       id: generateUniqueId(),
-      functionName: `Function ${getFunctionCount(functionDefinitions) + 1}`,
+      functionName: nextFunctionName(functionDefinitions),
       type: "function",
       functionDef: "",  // String für regular functions
       isActive: true,
@@ -78,7 +79,7 @@ const EditFunctionDialog = ({ isOpen, onClose }) => {
 
     const newFunction = {
       id: generateUniqueId(),
-      functionName: `Function ${getFunctionCount(functionDefinitions) + 1}`,
+      functionName: nextFunctionName(functionDefinitions),
       type: "piecewise_function",
       functionDef: [["", ""]],  // Array für piecewise functions
       isActive: true,

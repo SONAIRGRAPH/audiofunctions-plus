@@ -14,6 +14,7 @@ import {
   restorePreferenceSnapshot,
   getPreset,
 } from "../../../utils/prefs";
+import { SegmentedOptions } from "./SettingControls";
 
 /**
  * Every adjustable axis below the color palette, grouped into sections.
@@ -321,35 +322,16 @@ const ThemePreview = ({ themeId }) => (
 );
 
 /** One axis as a group of segmented radio buttons. */
-const OptionGroup = ({ axis, value, onChange }) => {
-  const groupName = `appearance-${axis.pref.key}`;
-  const hintId = `${groupName}-hint`;
-  return (
-    <fieldset aria-describedby={hintId}>
-      <legend className="customize-legend">{axis.label}</legend>
-      <p className="customize-hint" id={hintId}>{axis.description}</p>
-      <div className="flex flex-wrap gap-2 mt-2">
-        {optionsOf(axis).map((option) => {
-          const checked = value === option.value;
-          return (
-            <label key={option.value} className="option-segment">
-              <input
-                type="radio"
-                name={groupName}
-                value={option.value}
-                checked={checked}
-                onChange={() => onChange(option.value, option.label)}
-                className="sr-only"
-              />
-              {checked && <Check className="w-4 h-4 shrink-0" aria-hidden="true" />}
-              <span>{option.label}</span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-};
+const OptionGroup = ({ axis, value, onChange }) => (
+  <SegmentedOptions
+    name={`appearance-${axis.pref.key}`}
+    legend={axis.label}
+    hint={axis.description}
+    options={optionsOf(axis)}
+    value={value}
+    onChange={onChange}
+  />
+);
 
 /**
  * One axis as a native dropdown -- the most robust control for screen readers

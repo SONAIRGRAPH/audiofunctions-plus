@@ -23,7 +23,7 @@ import { nextStepSize, nextSpeed } from "../../utils/movementSettings";
 
 const playNavigationEarcon = (sampleName) => {
   try {
-    audioSampleManager.playSample(sampleName, { volume: -15 });
+    audioSampleManager.playSample(sampleName);
   } catch (error) {
     console.warn(`Failed to play ${sampleName} earcon:`, error);
   }

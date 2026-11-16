@@ -1,5 +1,5 @@
 import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
-  SwatchBook, SlidersHorizontal, Plus, Edit,
+  SwatchBook, SlidersHorizontal, SlidersVertical, Plus, Edit,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { useMixer } from "../../context/MixerContext";
@@ -383,7 +383,7 @@ export const usePaletteItems = () => {
   {
     id: "customization",
     label: "Customization",
-    keywords: toKeywords("customization, customize, appearance, theme, preset, color, style, visual, dark, light, contrast, accessibility, colorblind, settings, preferences"),
+    keywords: toKeywords("customization, customize, appearance, theme, preset, color, style, visual, dark, light, contrast, accessibility, colorblind, settings, preferences, audio, sound, volume, mixer"),
     icon: <SwatchBook />,
     children: [
       ...THEMES.map((theme) => {
@@ -402,6 +402,13 @@ export const usePaletteItems = () => {
         keywords: toKeywords("customize, appearance, settings, preferences, palette, line, width, thickness, text, size, font, toast, shortcut, highlight"),
         perform: () => openDialog("customization"),
         icon: <SlidersHorizontal />,
+      },
+      {
+        id: "audio-mixer",
+        label: "Audio Mixer",
+        keywords: toKeywords("mixer, audio, sound, volume, loudness, quiet, loud, mute, earcons, instruments, noise, tick, octave, clarinet, pitch, auto mute, modality, manual, settings, preferences"),
+        perform: () => openDialog("mixer"),
+        icon: <SlidersVertical />,
       },
     ],
   },
