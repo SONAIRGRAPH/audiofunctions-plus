@@ -291,12 +291,6 @@ export const THEME_FAMILIES = Object.freeze([
     variants: { system: 'system', light: 'light', dark: 'dark' },
   },
   {
-    id: 'high-contrast',
-    label: 'High Contrast',
-    icon: Contrast,
-    variants: { system: 'high-contrast-system', light: 'high-contrast-light', dark: 'high-contrast' },
-  },
-  {
     // Red-green (deuteranopia, protanopia), the most common color blindness
     id: 'color-blind',
     label: 'Color Blind Friendly',
@@ -306,6 +300,12 @@ export const THEME_FAMILIES = Object.freeze([
       light: 'deuteranopia-protanopia-friendly',
       dark: 'deuteranopia-protanopia-friendly-dark',
     },
+  },
+  {
+    id: 'high-contrast',
+    label: 'High Contrast',
+    icon: Contrast,
+    variants: { system: 'high-contrast-system', light: 'high-contrast-light', dark: 'high-contrast' },
   },
   {
     id: 'low-glare',
