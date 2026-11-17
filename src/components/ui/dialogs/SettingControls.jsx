@@ -19,11 +19,12 @@ import { RELATIVE_RANGE, gainAt, positionOf } from "../../../audio/fader";
  * @param {{value: string, label: string}[]} props.options
  * @param {string} props.value
  * @param {(value: string, label: string) => void} props.onChange
+ * @param {boolean} [props.disabled]  the whole group, e.g. not applicable right now
  */
-export const SegmentedOptions = ({ name, legend, hint, options, value, onChange }) => {
+export const SegmentedOptions = ({ name, legend, hint, options, value, onChange, disabled = false }) => {
   const hintId = hint ? `${name}-hint` : undefined;
   return (
-    <fieldset aria-describedby={hintId}>
+    <fieldset aria-describedby={hintId} disabled={disabled}>
       <legend className="customize-legend">{legend}</legend>
       {hint && <p className="customize-hint" id={hintId}>{hint}</p>}
       <div className="flex flex-wrap gap-2 mt-2">

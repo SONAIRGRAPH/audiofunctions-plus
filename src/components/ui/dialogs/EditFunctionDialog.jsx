@@ -830,7 +830,7 @@ const PiecewiseFunctionContainer = ({ index, value, instrument, onChange, onDele
 
       {/* Bordered container for piecewise function parts */}
       <div
-        className={`mt-2 border rounded-lg p-4 bg-background ${generalError || functionErrors.some(e => e && e.length > 0) || conditionErrors.some(e => e && e.length > 0) ? 'border-red-500' : 'border-gray-mddk'}`}
+        className={`mt-2 piecewise-box ${generalError || functionErrors.some(e => e && e.length > 0) || conditionErrors.some(e => e && e.length > 0) ? 'piecewise-box--error' : ''}`}
         role="group"
         aria-label={`Piecewise function ${index + 1} parts`}
       >

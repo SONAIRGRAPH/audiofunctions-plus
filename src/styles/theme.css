@@ -23,6 +23,10 @@
    To add a theme:
      1. Copy a block in section 5 and adjust its values.
      2. Add an entry to THEMES in src/utils/theme.js, including its icon.
+     3. Add its id to the theme values in the inline script of index.html.
+   A theme whose id starts with "high-contrast" also gets the shared high
+   contrast block and the high contrast rules in components.css; it only
+   has to define the --af-c-hc-* primitives.
    ============================================================================ */
 
 
@@ -333,27 +337,25 @@ html[data-spacing="wide"] * {
 
 
 /* ----------------------------------------------------------------------------
-   HIGH CONTRAST
+   HIGH CONTRAST  (light, dark, black on yellow, yellow on navy)
+
+   All variants share every token below and differ only in their primitives
+   (--af-c-hc-*), which the variant blocks after this one define. The rules in
+   components.css match both through [data-theme^="high-contrast"] and also
+   read only these primitives, so a variant needs nothing beyond its block.
+
+   Colors follow the Windows contrast themes (High Contrast Black / White),
+   which users of these themes know from the OS: a foreground and background
+   at the extremes, plus a separate accent for everything interactive or
+   active. The accent must not be the text color -- otherwise focus rings,
+   selections and active rows would look like plain borders and text.
+   Every pair used reaches WCAG AAA: 7:1 for text, far more for most.
    ---------------------------------------------------------------------------- */
-[data-theme="high-contrast"] {
-  color-scheme: dark;
-
-  /* Theme local primitives */
-  --af-c-hc-background: #000000;
-  --af-c-hc-foreground: #ffffff;
-  --af-c-hc-accent:     #ffff00;
-  --af-c-hc-link:       #00ffff;
-  --af-c-hc-warning:    #ff8000;
-  --af-c-hc-error:      #ff0000;
-  --af-c-hc-success:    #00ff00;
-  --af-c-hc-border:     #ffffff;
-
+[data-theme^="high-contrast"] {
   /* -- General -- */
   --af-primary: var(--af-c-hc-accent);
   --af-bg:      var(--af-c-hc-background);
-  --af-surface: #0a0a0a;
   --af-overlay: rgba(0, 0, 0, 0.7);
-  --af-danger:  #d91018;
 
   --af-link:       var(--af-c-hc-link);
   --af-link-hover: var(--af-c-hc-accent);
@@ -384,73 +386,225 @@ html[data-spacing="wide"] * {
 
   /* -- Graph: frame -- */
   --af-graph-axis: var(--af-c-hc-foreground);
-  --af-graph-grid: rgba(255, 255, 255, 0.5);
+  --af-graph-grid: var(--af-c-hc-grid);
   --af-graph-tick: var(--af-text);
   --af-graph-text: var(--af-text);
 
   /* -- Graph: curve palette -- */
-  --af-curve-1: var(--af-c-hc-accent);
+  --af-curve-1: var(--af-c-hc-curve);
   --af-curve-2: var(--af-c-hc-link);
   --af-curve-3: var(--af-c-hc-warning);
   --af-curve-4: var(--af-c-hc-success);
-  --af-curve-5: #ff69b4;
+  --af-curve-5: var(--af-c-hc-magenta);
   --af-curve-6: var(--af-c-hc-foreground);
 
-  /* -- Graph: points and markers -- */
-  --af-point-fill:             var(--af-c-hc-link);
-  --af-point-stroke:           var(--af-c-hc-link);
-  --af-endpoint-closed-fill:   var(--af-c-hc-link);
-  --af-endpoint-closed-stroke: var(--af-c-hc-link);
-  --af-endpoint-open-fill:     var(--af-c-hc-success);
-  --af-endpoint-open-stroke:   var(--af-c-hc-success);
+  /* -- Graph: points and markers --
+     Each variant sets --af-c-hc-curve and --af-c-hc-marker, and optionally:
+       --af-c-hc-marker-rim   outline of points, landmarks, closed endpoints
+       --af-c-hc-endpoint     closed endpoint fill, open endpoint ring
+     Both default to the foreground: a heavy outline in the text color makes
+     every marker a clearly bounded shape -- as long as the curve has a medium
+     lightness the outline can stand out from (light, yellow). Fills:
+       points, landmarks   --af-c-hc-marker
+       closed endpoints    filled, as in math notation
+       open endpoints      background -- hollow
+       cursor              error color, outlined in the foreground */
+  --af-point-fill:             var(--af-c-hc-marker);
+  --af-point-stroke:           var(--af-c-hc-marker-rim, var(--af-c-hc-foreground));
+  --af-endpoint-closed-fill:   var(--af-c-hc-endpoint, var(--af-c-hc-foreground));
+  --af-endpoint-closed-stroke: var(--af-c-hc-marker-rim, var(--af-c-hc-foreground));
+  --af-endpoint-open-fill:     var(--af-c-hc-background);
+  --af-endpoint-open-stroke:   var(--af-c-hc-endpoint, var(--af-c-hc-foreground));
 
   --af-cursor-fill:   var(--af-c-hc-error);
-  --af-cursor-stroke: var(--af-c-hc-error);
+  --af-cursor-stroke: var(--af-c-hc-foreground);
 
-  --af-landmark-fill:   var(--af-bg);
-  --af-landmark-stroke: var(--af-c-hc-link);
+  --af-landmark-fill:   var(--af-c-hc-marker);
+  --af-landmark-stroke: var(--af-c-hc-marker-rim, var(--af-c-hc-foreground));
 
   /* -- Dimensions: base values only, the user scale still applies on top -- */
   --af-ring-base: 5px;
 
-  /* -- What this theme suggests for the independent axes --
-     Larger type and heavier strokes belong to the purpose of this theme, so it
-     asks for them rather than waiting for the user to find two more settings.
-     Only a suggestion: html[data-text-size="..."] and html[data-line-width="..."]
-     outrank this block, so anyone who picked a size keeps it. Both use a factor
-     from the axis itself, so the value stays nameable. */
+  /* -- What these themes suggest for the independent axes --
+     Larger type and heavier strokes belong to the purpose of these themes, so
+     they ask for them rather than waiting for the user to find two more
+     settings. Only a suggestion: html[data-text-size="..."] and
+     html[data-line-width="..."] outrank this block, so anyone who picked a
+     size keeps it. Both use a factor from the axis itself, so the value stays
+     nameable -- HIGH_CONTRAST_PREFS in src/utils/theme.js names them for the
+     appearance dialog and has to match. */
   --af-text-scale:   1.2; /* the step behind data-text-size="lg" */
-  --af-stroke-scale: 1.6;  /* the step behind data-line-width="thick" */
+  --af-stroke-scale: 1.6; /* the step behind data-line-width="thick" */
+}
+
+/* Dark: white on black, yellow accent, cyan links (Windows High Contrast
+   Black). Yellow stays the accent rather than white: at 19.6:1 it is the
+   brightest color that is still clearly not the text color, which keeps
+   focus and selection distinguishable from borders and text. */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+
+  --af-c-hc-background: #000000;
+  --af-c-hc-foreground: #ffffff;
+  --af-c-hc-accent:     #ffff00; /* 19.6:1 on black */
+  --af-c-hc-link:       #00ffff; /* 16.7:1 */
+  --af-c-hc-warning:    #ff8000; /*  8.3:1 */
+  --af-c-hc-error:      #ff0000; /*  5.3:1 -- graphics only (cursor) */
+  --af-c-hc-success:    #00ff00; /* 15.3:1 */
+  --af-c-hc-magenta:    #ff69b4; /*  7.9:1 */
+  --af-c-hc-border:     #ffffff;
+  --af-c-hc-grid:       rgba(255, 255, 255, 0.5);
+
+  --af-surface: #0a0a0a;
+  --af-danger:  #d91018;
+
+  /* Graph: yellow curve, the strongest color on black (19.6:1). On black
+     a bright curve leaves no lightness to set markers apart -- a white
+     outline (the default) nearly merged with it. So the markers stand out by
+     hue: magenta (6.7:1 on black, 2.9:1 against the curve), with a black
+     outline as a gap to the curve. Closed endpoints magenta, open ones
+     magenta rings. The red cursor keeps the white outline, which sets it
+     apart from the black-rimmed magenta markers. */
+  --af-c-hc-curve:       #ffff00;
+  --af-c-hc-marker:      #ff00ff;
+  --af-c-hc-marker-rim:  #000000;
+  --af-c-hc-endpoint:    #ff00ff;
+
+  /* A slimmer black outline leaves more of the colored fill (graph.css) */
+  --af-marker-rim-scale: 0.6;
+}
+
+/* Light: black on white, deep blue accent, purple links (Windows High
+   Contrast White). Yellow does not work on white (1.1:1), so the accent
+   turns into a dark, saturated blue -- white text on it and it on white
+   both reach 11.9:1. */
+[data-theme="high-contrast-light"] {
+  color-scheme: light;
+
+  --af-c-hc-background: #ffffff;
+  --af-c-hc-foreground: #000000;
+  --af-c-hc-accent:     #0000c0; /* 11.9:1 on white */
+  --af-c-hc-link:       #6a00b0; /*  9.4:1 */
+  --af-c-hc-warning:    #8a4500; /*  7.2:1 */
+  --af-c-hc-error:      #b00000; /*  7.4:1 */
+  --af-c-hc-success:    #006400; /*  7.4:1 */
+  --af-c-hc-magenta:    #a0005a; /*  7.9:1 */
+  --af-c-hc-border:     #000000;
+  --af-c-hc-grid:       rgba(0, 0, 0, 0.45);
+
+  --af-surface: #f2f2f2;
+  --af-danger:  #b00000;
+
+  /* Graph: medium blue curve, 6.4:1 on white. Against it: closed endpoints
+     (black) 3.3:1, points and landmarks (yellow fill) 5.9:1, open endpoints
+     hollow; all outlined in black. Yellow works as a fill only here -- as a
+     line or text on white it would be invisible (1.1:1). */
+  --af-c-hc-curve:       #0058d0;
+  --af-c-hc-marker:      #ffff00;
+}
+
+/* Black on yellow: one of the common high contrast schemes for low vision,
+   an option for users who find a white background glaring -- still 19.6:1.
+   No purple anywhere -- yellow and purple are among the pairs hardest to
+   tell apart (RNIB). Accent and links are dark blues; white marks the
+   points, since yellow is the background. */
+[data-theme="high-contrast-yellow"] {
+  color-scheme: light;
+
+  --af-c-hc-background: #ffff00;
+  --af-c-hc-foreground: #000000;
+  --af-c-hc-accent:     #0000c0; /* 11.1:1 on yellow, yellow text on it too */
+  --af-c-hc-link:       #00008b; /* 14.2:1 */
+  --af-c-hc-warning:    #8a4500; /*  6.7:1 */
+  --af-c-hc-error:      #b00000; /*  6.9:1 */
+  --af-c-hc-success:    #006400; /*  6.9:1 */
+  --af-c-hc-magenta:    #a0005a; /*  7.4:1 */
+  --af-c-hc-border:     #000000;
+  --af-c-hc-grid:       rgba(0, 0, 0, 0.45);
+
+  /* Graph: the same medium blue as the light variant, 5.9:1 on yellow.
+     Against it: closed endpoints (black) 3.3:1, points and landmarks
+     (white fill) 6.4:1, open endpoints hollow (yellow); all outlined in
+     black. */
+  --af-c-hc-curve:       #0058d0;
+  --af-c-hc-marker:      #ffffff;
+
+  --af-surface: #f0f000;
+  --af-danger:  #b00000;
+}
+
+/* Yellow on navy: a scheme offered by screen magnifiers. Very high contrast
+   (14.9:1) without the starkness of black, which some low vision users find
+   easier on the eyes. White links; cyan accent, since the accent must not
+   be the text color. Graph like the dark variant, in blue and yellow --
+   complementary colors, distinct even with red-green color blindness:
+   medium blue curve (5.0:1 on navy), yellow markers (3.0:1 against the
+   curve) with a slim navy gap, red cursor outlined in yellow. */
+[data-theme="high-contrast-navy"] {
+  color-scheme: dark;
+
+  --af-c-hc-background: #000080;
+  --af-c-hc-foreground: #ffff00; /* 14.9:1 */
+  --af-c-hc-accent:     #00e5ff; /* 10.4:1, navy text on it 10.4:1 */
+  --af-c-hc-link:       #ffffff; /* 16.0:1 */
+  --af-c-hc-warning:    #ff9e40; /*  7.8:1 */
+  --af-c-hc-error:      #ff5c5c; /*  5.3:1 */
+  --af-c-hc-success:    #66ff66; /* 12.2:1 */
+  --af-c-hc-magenta:    #ff80ff; /*  7.5:1 */
+  --af-c-hc-border:     #ffff00;
+  --af-c-hc-grid:       rgba(255, 255, 255, 0.35);
+
+  --af-c-hc-curve:       #3b8eff;
+  --af-c-hc-marker:      #ffff00;
+  --af-c-hc-marker-rim:  #000080;
+  --af-c-hc-endpoint:    #ffff00;
+  --af-marker-rim-scale: 0.6;
+
+  --af-surface: #000066;
+  --af-danger:  #d91018;
 }
 
 
 /* ----------------------------------------------------------------------------
-   DEUTERANOPIA / PROTANOPIA FRIENDLY
-   Avoids red-green distinctions.
+   DEUTERANOPIA / PROTANOPIA FRIENDLY  (light and dark)
+
+   Avoids red-green distinctions. Colors come from the Okabe-Ito palette, the
+   common reference for color vision deficiencies, darkened or lightened
+   where needed for contrast against the background.
+
+   Roles are kept apart by luminance as well as hue, since hue alone is
+   unreliable here: the curve is blue, the cursor vermillion (reads as
+   orange-brown, never confused with blue), and points and landmarks are
+   neutral (near black / white). Purple next to blue is avoided -- with
+   protanopia purple loses its red and looks blue.
+
+   Contrast against the background, light / dark: curve 5.2 / 7.7,
+   cursor 3.9 / 6.4, points 17.4 / 17.7 (graphics need 3:1).
    ---------------------------------------------------------------------------- */
 [data-theme="deuteranopia-protanopia-friendly"] {
   color-scheme: light;
 
   /* Theme local primitives */
-  --af-c-dpf-background: #f8f9fa;
-  --af-c-dpf-foreground: #2c3e50;
-  --af-c-dpf-primary:    #3498db; /* Blue -- easy to tell apart */
-  --af-c-dpf-secondary:  #f39c12; /* Orange -- strong contrast against blue */
-  --af-c-dpf-accent:     #9b59b6; /* Purple -- distinct from both */
-  --af-c-dpf-warning:    #f39c12;
-  --af-c-dpf-error:      #e74c3c;
+  --af-c-dpf-blue:       #0072b2; /* lines, focus, links -- 5.2:1 on white */
+  --af-c-dpf-blue-dark:  #004f7c;
+  --af-c-dpf-sky:        #56b4e9; /* filled buttons, dark text on it 8.7:1 */
+  --af-c-dpf-vermillion: #d55e00; /* cursor -- 3.9:1 */
+  --af-c-dpf-orange:     #b35900; /* 4.8:1 */
+  --af-c-dpf-green:      #009e73; /* bluish green -- 3.4:1 */
+  --af-c-dpf-purple:     #aa4499; /* 5.3:1 */
+  --af-c-dpf-wine:       #882255; /* 8.7:1 */
+  --af-c-dpf-ink:        #1a1a1a; /* points and landmarks -- 17.4:1 */
   --af-c-dpf-border:     #bdc3c7;
-  --af-c-dpf-gray:       #95a5a6;
 
   /* -- General -- */
-  --af-primary: var(--af-c-dpf-primary);
+  --af-primary: var(--af-c-dpf-sky);
   --af-bg:      var(--af-c-white);
   --af-surface: var(--af-c-gray-50);
   --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 30%);
-  --af-danger:  var(--af-c-dpf-error);
+  --af-danger:  #e74c3c;
 
-  --af-link:       var(--af-c-dpf-primary);
-  --af-link-hover: var(--af-c-dpf-accent);
+  --af-link:       var(--af-c-dpf-blue);
+  --af-link-hover: var(--af-c-dpf-blue-dark);
 
   /* -- Text -- */
   --af-text:          var(--af-c-gray-900);
@@ -460,16 +614,16 @@ html[data-spacing="wide"] * {
 
   /* -- Basic elements -- */
   --af-border:          var(--af-c-dpf-border);
-  --af-border-hover:    var(--af-c-dpf-primary);
-  --af-border-focus:    var(--af-c-dpf-primary);
-  --af-border-contrast: var(--af-c-dpf-accent);
-  --af-hover-fill:      color-mix(in srgb, var(--af-c-dpf-primary), transparent 45%);
+  --af-border-hover:    var(--af-c-dpf-blue);
+  --af-border-focus:    var(--af-c-dpf-blue);
+  --af-border-contrast: var(--af-c-dpf-blue);
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-dpf-sky), transparent 45%);
   --af-hover-text:      var(--af-text-title);
   --af-input-bg:        var(--af-c-white);
 
   /* -- Error states -- */
   --af-error-text:   #b03a2e;
-  --af-error-border: var(--af-c-dpf-error);
+  --af-error-border: #e74c3c;
   --af-error-bg:     rgba(231, 76, 60, 0.1);
 
   /* -- Shadows -- */
@@ -477,32 +631,637 @@ html[data-spacing="wide"] * {
   --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 
   /* -- Graph: frame -- */
-  --af-graph-axis: var(--af-c-dpf-gray);
+  --af-graph-axis: var(--af-c-gray-500);
   --af-graph-grid: var(--af-c-dpf-border);
   --af-graph-tick: var(--af-text);
   --af-graph-text: var(--af-text);
 
   /* -- Graph: curve palette -- */
-  --af-curve-1: var(--af-c-dpf-primary);
-  --af-curve-2: var(--af-c-dpf-secondary);
-  --af-curve-3: var(--af-c-dpf-accent);
-  --af-curve-4: var(--af-c-dpf-foreground);
-  --af-curve-5: #16a085;
-  --af-curve-6: #7f8c8d;
+  --af-curve-1: var(--af-c-dpf-blue);
+  --af-curve-2: var(--af-c-dpf-orange);
+  --af-curve-3: var(--af-c-dpf-green);
+  --af-curve-4: var(--af-c-dpf-purple);
+  --af-curve-5: var(--af-c-dpf-wine);
+  --af-curve-6: var(--af-c-gray-500);
 
   /* -- Graph: points and markers -- */
-  --af-point-fill:             var(--af-c-dpf-accent);
-  --af-point-stroke:           var(--af-c-dpf-accent);
-  --af-endpoint-closed-fill:   var(--af-c-dpf-accent);
-  --af-endpoint-closed-stroke: var(--af-c-dpf-accent);
-  --af-endpoint-open-fill:     var(--af-c-dpf-background);
-  --af-endpoint-open-stroke:   var(--af-c-dpf-accent);
+  --af-point-fill:             var(--af-c-dpf-ink);
+  --af-point-stroke:           var(--af-c-dpf-ink);
+  --af-endpoint-closed-fill:   var(--af-c-dpf-ink);
+  --af-endpoint-closed-stroke: var(--af-c-dpf-ink);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-dpf-ink);
 
-  --af-cursor-fill:   var(--af-c-dpf-warning);
-  --af-cursor-stroke: var(--af-c-dpf-warning);
+  --af-cursor-fill:   var(--af-c-dpf-vermillion);
+  --af-cursor-stroke: var(--af-c-dpf-vermillion);
 
   --af-landmark-fill:   var(--af-bg);
-  --af-landmark-stroke: var(--af-c-dpf-accent);
+  --af-landmark-stroke: var(--af-c-dpf-ink);
+}
+
+[data-theme="deuteranopia-protanopia-friendly-dark"] {
+  color-scheme: dark;
+
+  /* Theme local primitives -- the Okabe-Ito colors as they are; all of them
+     are light enough for the dark background */
+  --af-c-dpf-blue:       #0072b2; /* filled buttons, white text on it 5.2:1 */
+  --af-c-dpf-sky:        #56b4e9; /* lines, focus, links -- 7.7:1 */
+  --af-c-dpf-sky-light:  #a6d8f3;
+  --af-c-dpf-vermillion: #f07b3f; /* cursor, lightened -- 6.4:1 */
+  --af-c-dpf-orange:     #e69f00; /* 7.9:1 */
+  --af-c-dpf-green:      #009e73; /* 5.2:1 */
+  --af-c-dpf-purple:     #cc79a7; /* 5.8:1 */
+  --af-c-dpf-yellow:     #f0e442; /* 13.4:1 */
+  --af-c-dpf-ink:        #ffffff; /* points and landmarks -- 17.7:1 */
+
+  /* -- General -- */
+  --af-primary: var(--af-c-dpf-blue);
+  --af-bg:      var(--af-c-gray-900);
+  --af-surface: var(--af-c-gray-950);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 45%);
+  --af-danger:  #d91018;
+
+  --af-link:       var(--af-c-dpf-sky);
+  --af-link-hover: var(--af-c-dpf-sky-light);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-gray-50);
+  --af-text-title:    var(--af-c-white);
+  --af-text-subtitle: var(--af-c-gray-200);
+  --af-text-label:    var(--af-c-gray-200);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-gray-500);
+  --af-border-hover:    var(--af-c-dpf-sky);
+  --af-border-focus:    var(--af-c-dpf-sky);
+  --af-border-contrast: var(--af-c-dpf-sky);
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-dpf-blue), transparent 40%);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        var(--af-c-gray-700);
+
+  /* -- Error states -- */
+  --af-error-text:   #fca5a5;
+  --af-error-border: #ef4444;
+  --af-error-bg:     rgba(239, 68, 68, 0.2);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.7), 0 1px 3px -1px rgb(0 0 0 / 0.6);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.7), 0 2px 4px -2px rgb(0 0 0 / 0.6);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-gray-200);
+  --af-graph-grid: var(--af-c-gray-500);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-dpf-sky);
+  --af-curve-2: var(--af-c-dpf-orange);
+  --af-curve-3: var(--af-c-dpf-green);
+  --af-curve-4: var(--af-c-dpf-purple);
+  --af-curve-5: var(--af-c-dpf-yellow);
+  --af-curve-6: var(--af-c-gray-200);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-dpf-ink);
+  --af-point-stroke:           var(--af-c-dpf-ink);
+  --af-endpoint-closed-fill:   var(--af-c-dpf-ink);
+  --af-endpoint-closed-stroke: var(--af-c-dpf-ink);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-dpf-ink);
+
+  --af-cursor-fill:   var(--af-c-dpf-vermillion);
+  --af-cursor-stroke: var(--af-c-dpf-vermillion);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-dpf-ink);
+}
+
+
+/* ----------------------------------------------------------------------------
+   SEPIA  (light; the dark variant follows below)
+   Warm, paper-like light theme: dark brown on cream. Less glare than black
+   on white, for light sensitivity, visual stress (e.g. Irlen syndrome) and
+   long reading -- known from the reading modes of e-book readers. Text
+   11.1:1, borders and graph elements at least 3.4:1 on the background.
+   ---------------------------------------------------------------------------- */
+[data-theme="sepia"] {
+  color-scheme: light;
+
+  /* Theme local primitives */
+  --af-c-sepia-paper:  #f4ecd8;
+  --af-c-sepia-paper-2: #ebe0c6;
+  --af-c-sepia-ink:    #3b2f1e; /* 11.1:1 */
+  --af-c-sepia-ink-2:  #2a2015; /* 13.6:1 */
+  --af-c-sepia-ink-3:  #5c4a33; /*  7.2:1 */
+  --af-c-sepia-amber:  #d9a55b; /* buttons -- dark text on it 7.2:1 */
+  --af-c-sepia-blue:   #1f5c99; /* curve, focus, links -- 5.8:1 */
+  --af-c-sepia-red:    #b3261e; /* cursor -- 5.6:1 */
+  --af-c-sepia-border: #8f7d5a; /*  3.4:1 */
+  --af-c-sepia-axis:   #7a6648; /*  4.7:1 */
+  --af-c-sepia-grid:   #d9ccaf;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-sepia-amber);
+  --af-bg:      var(--af-c-sepia-paper);
+  --af-surface: var(--af-c-sepia-paper-2);
+  --af-overlay: color-mix(in srgb, var(--af-c-sepia-ink-2), transparent 35%);
+  --af-danger:  var(--af-c-sepia-red);
+
+  --af-link:       var(--af-c-sepia-blue);
+  --af-link-hover: var(--af-c-sepia-ink-2);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-sepia-ink);
+  --af-text-title:    var(--af-c-sepia-ink-2);
+  --af-text-subtitle: var(--af-c-sepia-ink-3);
+  --af-text-label:    var(--af-c-sepia-ink-3);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-sepia-border);
+  --af-border-hover:    var(--af-c-sepia-blue);
+  --af-border-focus:    var(--af-c-sepia-blue);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-sepia-amber), transparent 45%);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        #faf5e8;
+
+  /* -- Error states -- */
+  --af-error-text:   #a3271b;
+  --af-error-border: var(--af-c-sepia-red);
+  --af-error-bg:     rgba(179, 38, 30, 0.1);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 1px 2px 0 rgb(59 47 30 / 0.08);
+  --af-shadow:    0 4px 6px -1px rgb(59 47 30 / 0.12), 0 2px 4px -2px rgb(59 47 30 / 0.12);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-sepia-axis);
+  --af-graph-grid: var(--af-c-sepia-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-sepia-blue);
+  --af-curve-2: #8a4b00;
+  --af-curve-3: #2f6b2f;
+  --af-curve-4: #6b3fa0;
+  --af-curve-5: #1f6f6f;
+  --af-curve-6: var(--af-c-sepia-ink-3);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-sepia-ink-2);
+  --af-point-stroke:           var(--af-c-sepia-ink-2);
+  --af-endpoint-closed-fill:   var(--af-c-sepia-ink-2);
+  --af-endpoint-closed-stroke: var(--af-c-sepia-ink-2);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-sepia-ink-2);
+
+  --af-cursor-fill:   var(--af-c-sepia-red);
+  --af-cursor-stroke: var(--af-c-sepia-red);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-sepia-ink-2);
+}
+
+
+/* ----------------------------------------------------------------------------
+   LOW GLARE  (dark; the light variant follows below)
+   Softened dark theme: off-white on dark gray instead of white on black.
+   Maximum contrast makes bright text bleed into the dark background for
+   many people with light sensitivity, cataract or astigmatism (halation);
+   this keeps text at 11:1 -- still above WCAG AAA -- without the glare.
+   Muted, light colors for the graph, all at least 6.9:1 on the background.
+   ---------------------------------------------------------------------------- */
+[data-theme="low-glare"] {
+  color-scheme: dark;
+
+  /* Theme local primitives */
+  --af-c-glare-bg:      #1e1f22;
+  --af-c-glare-surface: #17181a;
+  --af-c-glare-text:    #d4d4d4; /* 11.1:1 */
+  --af-c-glare-title:   #e3e3e3; /* 12.8:1 */
+  --af-c-glare-muted:   #b4b4b4; /*  7.9:1 */
+  --af-c-glare-blue:    #8ab4f8; /* curve, focus, links -- 7.8:1 */
+  --af-c-glare-blue-2:  #aecbfa;
+  --af-c-glare-button:  #335f91; /* buttons -- title text on it 5.1:1 */
+  --af-c-glare-red:     #f28b82; /* cursor -- 6.9:1 */
+  --af-c-glare-yellow:  #fdd663; /* points, landmarks -- 11.8:1 */
+  --af-c-glare-border:  #6e7178; /*  3.4:1 */
+  --af-c-glare-axis:    #9a9da3; /*  6.1:1 */
+  --af-c-glare-grid:    #3a3c40;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-glare-button);
+  --af-bg:      var(--af-c-glare-bg);
+  --af-surface: var(--af-c-glare-surface);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 45%);
+  --af-danger:  #c5221f;
+
+  --af-link:       var(--af-c-glare-blue);
+  --af-link-hover: var(--af-c-glare-blue-2);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-glare-text);
+  --af-text-title:    var(--af-c-glare-title);
+  --af-text-subtitle: var(--af-c-glare-muted);
+  --af-text-label:    var(--af-c-glare-muted);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-glare-border);
+  --af-border-hover:    var(--af-c-glare-blue);
+  --af-border-focus:    var(--af-c-glare-blue);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-glare-button), transparent 40%);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        #2a2b2f;
+
+  /* -- Error states -- */
+  --af-error-text:   var(--af-c-glare-red);
+  --af-error-border: var(--af-c-glare-red);
+  --af-error-bg:     rgba(242, 139, 130, 0.12);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.5), 0 1px 3px -1px rgb(0 0 0 / 0.4);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-glare-axis);
+  --af-graph-grid: var(--af-c-glare-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-glare-blue);
+  --af-curve-2: #fcad70;
+  --af-curve-3: #81c995;
+  --af-curve-4: #c58af9;
+  --af-curve-5: #78d9ec;
+  --af-curve-6: var(--af-c-glare-muted);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-glare-yellow);
+  --af-point-stroke:           var(--af-c-glare-yellow);
+  --af-endpoint-closed-fill:   var(--af-c-glare-yellow);
+  --af-endpoint-closed-stroke: var(--af-c-glare-yellow);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-glare-yellow);
+
+  --af-cursor-fill:   var(--af-c-glare-red);
+  --af-cursor-stroke: var(--af-c-glare-red);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-glare-yellow);
+}
+
+
+/* ----------------------------------------------------------------------------
+   LOW GLARE LIGHT
+   The light side of low glare: dark gray on mid-light gray instead of black
+   on white, so the page does not shine -- about 75 % of white's lightness.
+   Text 9.7:1, borders and graph elements at least 3.5:1 on the background.
+   ---------------------------------------------------------------------------- */
+[data-theme="low-glare-light"] {
+  color-scheme: light;
+
+  /* Theme local primitives */
+  --af-c-glare-bg:      #e2e1dd;
+  --af-c-glare-surface: #d8d7d2;
+  --af-c-glare-text:    #333333; /*  9.7:1 */
+  --af-c-glare-title:   #222222; /* 12.2:1 */
+  --af-c-glare-muted:   #555555; /*  5.7:1 */
+  --af-c-glare-blue:    #2f5f9e; /* curve, focus, links -- 4.9:1 */
+  --af-c-glare-blue-2:  #1f4373;
+  --af-c-glare-button:  #9fbde0; /* buttons -- title text on it 8.2:1 */
+  --af-c-glare-red:     #a33c33; /* cursor -- 4.9:1 */
+  --af-c-glare-amber:   #6e4c00; /* points, landmarks -- 6.0:1 */
+  --af-c-glare-border:  #76756f; /*  3.5:1 */
+  --af-c-glare-axis:    #6e6d68; /*  4.0:1 */
+  --af-c-glare-grid:    #cdccc7;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-glare-button);
+  --af-bg:      var(--af-c-glare-bg);
+  --af-surface: var(--af-c-glare-surface);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 40%);
+  --af-danger:  var(--af-c-glare-red);
+
+  --af-link:       var(--af-c-glare-blue);
+  --af-link-hover: var(--af-c-glare-blue-2);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-glare-text);
+  --af-text-title:    var(--af-c-glare-title);
+  --af-text-subtitle: var(--af-c-glare-muted);
+  --af-text-label:    var(--af-c-glare-muted);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-glare-border);
+  --af-border-hover:    var(--af-c-glare-blue);
+  --af-border-focus:    var(--af-c-glare-blue);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-glare-button), transparent 45%);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        #ebeae6;
+
+  /* -- Error states -- */
+  --af-error-text:   #9c3329;
+  --af-error-border: var(--af-c-glare-red);
+  --af-error-bg:     rgba(163, 60, 51, 0.1);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.06);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-glare-axis);
+  --af-graph-grid: var(--af-c-glare-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-glare-blue);
+  --af-curve-2: #8a4b00;
+  --af-curve-3: #2f6b3a;
+  --af-curve-4: #6b4a9e;
+  --af-curve-5: #1f6b70;
+  --af-curve-6: var(--af-c-glare-muted);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-glare-amber);
+  --af-point-stroke:           var(--af-c-glare-amber);
+  --af-endpoint-closed-fill:   var(--af-c-glare-amber);
+  --af-endpoint-closed-stroke: var(--af-c-glare-amber);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-glare-amber);
+
+  --af-cursor-fill:   var(--af-c-glare-red);
+  --af-cursor-stroke: var(--af-c-glare-red);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-glare-amber);
+}
+
+
+/* ----------------------------------------------------------------------------
+   SEPIA DARK
+   The night mode of e-book readers: cream on dark brown.
+   Warm and dim for reading in the dark. Text 11.6:1, borders and graph
+   elements at least 3.6:1 on the background.
+   ---------------------------------------------------------------------------- */
+[data-theme="sepia-dark"] {
+  color-scheme: dark;
+
+  /* Theme local primitives */
+  --af-c-sepia-paper:   #2b2118;
+  --af-c-sepia-paper-2: #221a12;
+  --af-c-sepia-ink:     #e8dcc0; /* 11.6:1 */
+  --af-c-sepia-ink-2:   #f4ecd8; /* 13.4:1 */
+  --af-c-sepia-ink-3:   #c9b994; /*  8.1:1 */
+  --af-c-sepia-button:  #6e4721; /* buttons -- title text on it 6.9:1 */
+  --af-c-sepia-amber:   #e8b25c; /* curve, focus, links -- 8.2:1 */
+  --af-c-sepia-coral:   #f0907c; /* cursor -- 6.7:1 */
+  --af-c-sepia-sky:     #9cc3e6; /* points, landmarks -- 8.5:1 */
+  --af-c-sepia-border:  #8a7656; /*  3.6:1 */
+  --af-c-sepia-axis:    #b09a75; /*  5.8:1 */
+  --af-c-sepia-grid:    #45372a;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-sepia-button);
+  --af-bg:      var(--af-c-sepia-paper);
+  --af-surface: var(--af-c-sepia-paper-2);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 45%);
+  --af-danger:  #b3261e;
+
+  --af-link:       var(--af-c-sepia-amber);
+  --af-link-hover: var(--af-c-sepia-ink-2);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-sepia-ink);
+  --af-text-title:    var(--af-c-sepia-ink-2);
+  --af-text-subtitle: var(--af-c-sepia-ink-3);
+  --af-text-label:    var(--af-c-sepia-ink-3);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-sepia-border);
+  --af-border-hover:    var(--af-c-sepia-amber);
+  --af-border-focus:    var(--af-c-sepia-amber);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      color-mix(in srgb, var(--af-c-sepia-button), transparent 35%);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        #36291e;
+
+  /* -- Error states -- */
+  --af-error-text:   var(--af-c-sepia-coral);
+  --af-error-border: var(--af-c-sepia-coral);
+  --af-error-bg:     rgba(240, 144, 124, 0.12);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.5), 0 1px 3px -1px rgb(0 0 0 / 0.4);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-sepia-axis);
+  --af-graph-grid: var(--af-c-sepia-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-sepia-amber);
+  --af-curve-2: var(--af-c-sepia-sky);
+  --af-curve-3: #a8c98a;
+  --af-curve-4: #d6a6d0;
+  --af-curve-5: #8fd0c8;
+  --af-curve-6: var(--af-c-sepia-ink-3);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-sepia-sky);
+  --af-point-stroke:           var(--af-c-sepia-sky);
+  --af-endpoint-closed-fill:   var(--af-c-sepia-sky);
+  --af-endpoint-closed-stroke: var(--af-c-sepia-sky);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-sepia-sky);
+
+  --af-cursor-fill:   var(--af-c-sepia-coral);
+  --af-cursor-stroke: var(--af-c-sepia-coral);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-sepia-sky);
+}
+
+
+/* ----------------------------------------------------------------------------
+   MONOCHROME  (light and dark)
+   No hue at all -- everything is told apart by lightness and shape. For
+   achromatopsia (complete color blindness, often with light sensitivity, so
+   the dark variant), and for grayscale printing or washed-out projectors
+   (the light variant). Graph roles:
+     curve        black / white, full contrast
+     points       mid gray with an outline in the curve color (6.2:1 / 3.4:1
+                  against the curve)
+     landmarks    background fill with an outline -- told apart by shape
+     endpoints    filled or hollow, as in math notation
+     cursor       curve color with a mid gray ring, unlike every marker
+   ---------------------------------------------------------------------------- */
+[data-theme^="monochrome"] {
+    --af-text-scale:   1.2; /* the step behind data-text-size="lg" */
+    --af-stroke-scale: 1.6; /* the step behind data-line-width="thick" */
+}
+
+[data-theme="monochrome-light"] {
+  color-scheme: light;
+
+  /* Theme local primitives */
+  --af-c-mono-bg:      #ffffff;
+  --af-c-mono-surface: #f0f0f0;
+  --af-c-mono-ink:     #000000;
+  --af-c-mono-text:    #111111; /* 18.9:1 */
+  --af-c-mono-muted:   #4d4d4d; /*  8.5:1 */
+  --af-c-mono-mid:     #8c8c8c; /* points, cursor ring -- 3.4:1 */
+  --af-c-mono-button:  #d4d4d4; /* black text on it 14.2:1 */
+  --af-c-mono-border:  #767676; /*  4.5:1 */
+  --af-c-mono-axis:    #595959; /*  7.0:1 */
+  --af-c-mono-grid:    #d9d9d9;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-mono-button);
+  --af-bg:      var(--af-c-mono-bg);
+  --af-surface: var(--af-c-mono-surface);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 35%);
+  --af-danger:  #333333;
+
+  --af-link:       var(--af-c-mono-ink);
+  --af-link-hover: var(--af-c-mono-muted);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-mono-text);
+  --af-text-title:    var(--af-c-mono-ink);
+  --af-text-subtitle: var(--af-c-mono-muted);
+  --af-text-label:    var(--af-c-mono-muted);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-mono-border);
+  --af-border-hover:    var(--af-c-mono-ink);
+  --af-border-focus:    var(--af-c-mono-ink);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      var(--af-c-mono-button);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        var(--af-c-mono-bg);
+
+  /* -- Error states: no red, the message text carries the meaning -- */
+  --af-error-text:   var(--af-c-mono-ink);
+  --af-error-border: var(--af-c-mono-ink);
+  --af-error-bg:     var(--af-c-mono-surface);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.12), 0 2px 4px -2px rgb(0 0 0 / 0.12);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-mono-axis);
+  --af-graph-grid: var(--af-c-mono-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-mono-ink);
+  --af-curve-2: var(--af-c-mono-muted);
+  --af-curve-3: var(--af-c-mono-axis);
+  --af-curve-4: var(--af-c-mono-border);
+  --af-curve-5: var(--af-c-mono-mid);
+  --af-curve-6: var(--af-c-mono-text);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-mono-mid);
+  --af-point-stroke:           var(--af-c-mono-ink);
+  --af-endpoint-closed-fill:   var(--af-c-mono-ink);
+  --af-endpoint-closed-stroke: var(--af-c-mono-ink);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-mono-ink);
+
+  --af-cursor-fill:   var(--af-c-mono-ink);
+  --af-cursor-stroke: var(--af-c-mono-mid);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-mono-ink);
+}
+
+[data-theme="monochrome-dark"] {
+  color-scheme: dark;
+
+  /* Theme local primitives */
+  --af-c-mono-bg:      #121212;
+  --af-c-mono-surface: #0a0a0a;
+  --af-c-mono-ink:     #ffffff;
+  --af-c-mono-text:    #e6e6e6; /* 15.0:1 */
+  --af-c-mono-muted:   #b3b3b3; /*  8.9:1 */
+  --af-c-mono-mid:     #8c8c8c; /* points, cursor ring -- 5.6:1 */
+  --af-c-mono-button:  #3d3d3d; /* white text on it 10.9:1 */
+  --af-c-mono-border:  #8c8c8c; /*  5.6:1 */
+  --af-c-mono-axis:    #a6a6a6; /*  7.7:1 */
+  --af-c-mono-grid:    #333333;
+
+  /* -- General -- */
+  --af-primary: var(--af-c-mono-button);
+  --af-bg:      var(--af-c-mono-bg);
+  --af-surface: var(--af-c-mono-surface);
+  --af-overlay: color-mix(in srgb, var(--af-c-black), transparent 45%);
+  --af-danger:  #4d4d4d;
+
+  --af-link:       var(--af-c-mono-ink);
+  --af-link-hover: var(--af-c-mono-muted);
+
+  /* -- Text -- */
+  --af-text:          var(--af-c-mono-text);
+  --af-text-title:    var(--af-c-mono-ink);
+  --af-text-subtitle: var(--af-c-mono-muted);
+  --af-text-label:    var(--af-c-mono-muted);
+
+  /* -- Basic elements -- */
+  --af-border:          var(--af-c-mono-border);
+  --af-border-hover:    var(--af-c-mono-ink);
+  --af-border-focus:    var(--af-c-mono-ink);
+  --af-border-contrast: transparent;
+  --af-hover-fill:      var(--af-c-mono-button);
+  --af-hover-text:      var(--af-text-title);
+  --af-input-bg:        #1e1e1e;
+
+  /* -- Error states: no red, the message text carries the meaning -- */
+  --af-error-text:   var(--af-c-mono-ink);
+  --af-error-border: var(--af-c-mono-ink);
+  --af-error-bg:     var(--af-c-mono-surface);
+
+  /* -- Shadows -- */
+  --af-shadow-sm: 0 2px 4px 0 rgb(0 0 0 / 0.6), 0 1px 3px -1px rgb(0 0 0 / 0.5);
+  --af-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.6), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+
+  /* -- Graph: frame -- */
+  --af-graph-axis: var(--af-c-mono-axis);
+  --af-graph-grid: var(--af-c-mono-grid);
+  --af-graph-tick: var(--af-text);
+  --af-graph-text: var(--af-text);
+
+  /* -- Graph: curve palette -- */
+  --af-curve-1: var(--af-c-mono-ink);
+  --af-curve-2: var(--af-c-mono-muted);
+  --af-curve-3: var(--af-c-mono-axis);
+  --af-curve-4: var(--af-c-mono-border);
+  --af-curve-5: var(--af-c-mono-mid);
+  --af-curve-6: var(--af-c-mono-text);
+
+  /* -- Graph: points and markers -- */
+  --af-point-fill:             var(--af-c-mono-mid);
+  --af-point-stroke:           var(--af-c-mono-ink);
+  --af-endpoint-closed-fill:   var(--af-c-mono-ink);
+  --af-endpoint-closed-stroke: var(--af-c-mono-ink);
+  --af-endpoint-open-fill:     var(--af-bg);
+  --af-endpoint-open-stroke:   var(--af-c-mono-ink);
+
+  --af-cursor-fill:   var(--af-c-mono-ink);
+  --af-cursor-stroke: var(--af-c-mono-mid);
+
+  --af-landmark-fill:   var(--af-bg);
+  --af-landmark-stroke: var(--af-c-mono-ink);
 }
 
 
@@ -512,7 +1271,7 @@ html[data-spacing="wide"] * {
    The command palette in src/components/ui/command-palette is self-contained
    and reads its colors from its own --cp-* namespace, each with a literal
    fallback. Mapping them here is all it takes to adopt the app theme; its CSS
-   stays untouched and portable.
+   stays untouched.
 
    Selector is html[data-theme] on purpose, not :root: command-palette.css is
    imported from the component and therefore bundled after this file, and its
@@ -536,10 +1295,22 @@ html[data-theme] {
   --cp-shadow: var(--af-shadow);
 }
 
+/* Header logo (.app-logo in components.css) follows the theme accent. The
+   light theme's accent is too pale for it (2.2:1 on white), so it keeps the
+   original logo green (3.1:1). Only [data-theme="light"], not :root: a value
+   on :root would apply to every theme. */
+[data-theme="light"] {
+  --af-logo: #18aa18;
+}
+
+[data-theme="sepia"] {
+  --af-logo: var(--af-c-sepia-border);
+}
+
 /* The theme's overlay is a bright veil that separates a modal from the page
    behind it. Under the palette's blur that reads as glare, so it gets a black
    scrim -- built like the light theme's, only from the other end. */
-[data-theme="high-contrast"] {
+[data-theme^="high-contrast"] {
   --cp-backdrop: color-mix(in srgb, var(--af-c-black), transparent 25%);
 }
 

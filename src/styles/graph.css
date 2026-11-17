@@ -73,6 +73,10 @@ text.JXGtext {
 
 /* ---------------------------------------------------------------------------
    Points
+
+   --af-marker-rim-scale lets a theme thin or widen the outline of filled
+   markers (closed endpoints, points, landmarks). Open endpoints are left out
+   on purpose -- their ring is the marker.
    --------------------------------------------------------------------------- */
 .endpoint-open {
   fill: var(--af-endpoint-open-fill);
@@ -83,13 +87,13 @@ text.JXGtext {
 .endpoint-closed {
   fill: var(--af-endpoint-closed-fill);
   stroke: var(--af-endpoint-closed-stroke);
-  stroke-width: var(--af-stroke-point);
+  stroke-width: calc(var(--af-stroke-point) * var(--af-marker-rim-scale, 1));
 }
 
 .isolated-point {
   fill: var(--af-point-fill);
   stroke: var(--af-point-stroke);
-  stroke-width: var(--af-stroke-point);
+  stroke-width: calc(var(--af-stroke-point) * var(--af-marker-rim-scale, 1));
 }
 
 
@@ -118,5 +122,5 @@ text.JXGtext {
 .landmark-square {
   fill: var(--af-landmark-fill);
   stroke: var(--af-landmark-stroke);
-  stroke-width: var(--af-stroke-landmark);
+  stroke-width: calc(var(--af-stroke-landmark) * var(--af-marker-rim-scale, 1));
 }

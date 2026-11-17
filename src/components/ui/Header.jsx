@@ -119,7 +119,8 @@ const Header = () => {
       className="relative w-full flex items-center gap-[1em] py-[0.5em] px-[1em] text-[length:min(1rem,max(2.2vh,9px))] border-b border-border shadow bg-background"
     >
       <div className="flex flex-1 items-center gap-[1em] min-w-0">
-        {step.logo && <img src="/logo.svg" alt="AudioFunctions+ logo" className="size-[4.25em] shrink-0" />}
+        {/* Logo drawn in the theme's color: the SVG is a mask (.app-logo) */}
+        {step.logo && <span role="img" aria-label="AudioFunctions+ logo" className="app-logo size-[4.25em] shrink-0" />}
         {/* Shortened with an ellipsis while it fits at all; hidden beyond
             that, but kept for screen readers so the page keeps its h1 */}
         <h1 className={`font-bold min-w-0 ${step.title ? "truncate" : "sr-only"}`}>AudioFunctions+</h1>

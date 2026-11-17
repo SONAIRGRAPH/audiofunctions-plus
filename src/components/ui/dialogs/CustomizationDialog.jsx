@@ -1,7 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Description, Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Check } from "lucide-react";
-import { THEMES, setTheme, getTheme } from "../../../utils/theme";
+import {
+  THEMES,
+  THEME_FAMILIES,
+  THEME_MODES,
+  STANDALONE_THEMES,
+  themeFamilyOf,
+  getThemeMode,
+  selectThemeFamily,
+  selectThemeMode,
+  setTheme,
+  getTheme,
+} from "../../../utils/theme";
 import {
   lineWidthPref,
   textSizePref,
@@ -46,7 +57,7 @@ const SECTIONS = [
         pref: fontPref,
         label: "Font",
         description:
-          "Atkinson Hyperlegible keeps similar characters such as 1, l and I apart. Lexend, Andika, Comic Neue and OpenDyslexic are often preferred by readers with dyslexia. Wider spacing below helps many readers.",
+          "Atkinson Hyperlegible keeps similar characters apart. Lexend, Andika, Comic Neue and OpenDyslexic suit many readers with dyslexia.",
         options: {
           system: "System",
           inter: "Inter",
@@ -83,7 +94,7 @@ const SECTIONS = [
       {
         pref: textSizePref,
         label: "Text size",
-        description: "Scales text and spacing together, like browser zoom.",
+        description: "Scales text and spacing, like browser zoom.",
         options: { sm: "Small", normal: "Normal", lg: "Large", xl: "Extra large" },
         autoDefault: "normal",
         control: "select",
@@ -124,6 +135,8 @@ const SECTIONS = [
 
 const themeById = (id) => THEMES.find((theme) => theme.id === id);
 
+const MODE_LABELS = { system: "System", light: "Light", dark: "Dark" };
+
 /** "Theme default (Inline)" -- names what 'auto' currently resolves to. */
 function autoLabel(axis) {
   const value = getPreset(axis.pref.key) ?? axis.autoDefault;
@@ -154,14 +167,38 @@ const CustomizationDialog = ({ isOpen, onClose }) => {
     if (!isOpen) return;
     snapshotRef.current = getPreferenceSnapshot();
     refresh();
-    // The screen reader announces the dialog itself through the focus
-    announceStatus(`Current color palette: ${themeById(getTheme())?.shortLabel}.`);
+    // The screen reader announces the dialog itself through the focus.
+    // A family is named with its light/dark choice, e.g. "High Contrast, Dark".
+    const info = themeFamilyOf(getTheme());
+    announceStatus(
+      info
+        ? `Current color palette: ${info.family.label}, ${MODE_LABELS[info.mode]}.`
+        : `Current color palette: ${themeById(getTheme())?.shortLabel}.`
+    );
   }, [isOpen]);
 
-  const handlePalette = (themeId) => {
-    setTheme(themeId);
+  const palette = getTheme();
+  const current = themeFamilyOf(palette); // null for a standalone theme
+  // While a standalone theme is active this is the last choice, which a
+  // family gets again when picked
+  const mode = getThemeMode();
+
+  const handleFamily = (family) => {
+    selectThemeFamily(family.id);
     refresh();
-    announceStatus(`Color palette: ${themeById(themeId)?.shortLabel}`);
+    announceStatus(`Color palette: ${family.label}`);
+  };
+
+  const handleStandalone = (theme) => {
+    setTheme(theme.id);
+    refresh();
+    announceStatus(`Color palette: ${theme.shortLabel}`);
+  };
+
+  const handleMode = (value, label) => {
+    if (!selectThemeMode(value)) return;
+    refresh();
+    announceStatus(`Light or dark: ${label}`);
   };
 
   const handleAxis = (axis, value, label) => {
@@ -182,8 +219,6 @@ const CustomizationDialog = ({ isOpen, onClose }) => {
     }
     onClose();
   };
-
-  const palette = getTheme();
 
   return (
     <Dialog
@@ -210,7 +245,7 @@ const CustomizationDialog = ({ isOpen, onClose }) => {
               Customize Appearance
             </DialogTitle>
             <Description id="customization-description" className="text-descriptions">
-              Choose a color palette and adjust the display settings. Changes are shown immediately. Cancel restores the previous appearance.
+              Changes apply immediately. Cancel restores the previous appearance.
             </Description>
           </div>
 
@@ -220,25 +255,73 @@ const CustomizationDialog = ({ isOpen, onClose }) => {
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-6">
-            <section aria-labelledby="customize-colors-title" className="space-y-2">
+            <section aria-labelledby="customize-colors-title" className="space-y-4">
               <h3 id="customize-colors-title" className="customize-section-title">Colors</h3>
+              {/* First, as it applies to every palette below. Disabled rather
+                  than hidden for a standalone theme (no variants), so the
+                  cards below do not jump when one is picked */}
+              <SegmentedOptions
+                name="appearance-mode"
+                legend="Light or dark"
+                hint={
+                  current
+                    ? "System follows your operating system."
+                    : `Not available for ${themeById(palette)?.shortLabel}.`
+                }
+                options={THEME_MODES.map((value) => ({ value, label: MODE_LABELS[value] }))}
+                value={mode}
+                onChange={handleMode}
+                disabled={!current}
+              />
+
+              {/* One radio group across both blocks: families and the
+                  standalone themes exclude each other */}
               <fieldset aria-describedby="palette-hint">
                 <legend className="customize-legend">Color palette</legend>
                 <p className="customize-hint" id="palette-hint">
-                  Colors of the interface and the graph. Settings on "Theme default" follow the palette.
+                  For the interface and the graph. Settings on "Theme default" follow it.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                  {THEMES.map((theme) => (
-                    <ThemeCard
-                      key={theme.id}
+                  {THEME_FAMILIES.map((family) => (
+                    <PaletteCard
+                      key={family.id}
                       name="appearance-palette"
-                      theme={theme}
-                      checked={palette === theme.id}
-                      onChange={() => handlePalette(theme.id)}
+                      value={family.id}
+                      label={family.label}
+                      icon={family.icon}
+                      previewIds={
+                        mode === "system"
+                          ? [family.variants.light, family.variants.dark]
+                          : [family.variants[mode]]
+                      }
+                      checked={current?.family.id === family.id}
+                      onChange={() => handleFamily(family)}
                     />
                   ))}
                 </div>
+
+                {STANDALONE_THEMES.length > 0 && (
+                  <>
+                    <p className="customize-legend mt-4" id="palette-other-label">Special palettes</p>
+                    <p className="customize-hint">For specific visual needs, without light or dark variant.</p>
+                    <div className="grid grid-cols-3 gap-2 mt-2" role="group" aria-labelledby="palette-other-label">
+                      {STANDALONE_THEMES.map((theme) => (
+                        <PaletteCard
+                          key={theme.id}
+                          name="appearance-palette"
+                          value={theme.id}
+                          label={theme.shortLabel}
+                          icon={theme.icon}
+                          previewIds={[theme.id]}
+                          checked={palette === theme.id}
+                          onChange={() => handleStandalone(theme)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
               </fieldset>
+
             </section>
 
             {SECTIONS.map((section) => {
@@ -279,32 +362,30 @@ const CustomizationDialog = ({ isOpen, onClose }) => {
 };
 
 /**
- * A theme as a radio card with a small preview. The preview element carries
- * its own data-theme, so theme.css colors it with that theme's tokens.
+ * A palette (theme family or standalone theme) as a radio card with small
+ * previews. Each preview carries its own data-theme, so theme.css colors it
+ * with that theme's tokens; a family on "System" shows light and dark.
  */
-const ThemeCard = ({ name, theme, checked, onChange }) => {
-  const Icon = theme.icon;
+const PaletteCard = ({ name, value, label, icon, previewIds, checked, onChange }) => {
+  const Icon = icon;
   return (
     <label className="option-card">
       <input
         type="radio"
         name={name}
-        value={theme.id}
+        value={value}
         checked={checked}
         onChange={onChange}
         className="sr-only"
       />
-      {theme.id === "system" ? (
-        <span className="flex gap-1" aria-hidden="true">
-          <ThemePreview themeId="light" />
-          <ThemePreview themeId="dark" />
-        </span>
-      ) : (
-        <ThemePreview themeId={theme.id} />
-      )}
+      <span className="flex gap-1" aria-hidden="true">
+        {previewIds.map((id) => (
+          <ThemePreview key={id} themeId={id} />
+        ))}
+      </span>
       <span className="flex items-center gap-2 text-sm">
         <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
-        <span className="flex-1">{theme.shortLabel}</span>
+        <span className="flex-1">{label}</span>
         {checked && <Check className="w-4 h-4 shrink-0" aria-hidden="true" />}
       </span>
     </label>
