@@ -74,7 +74,7 @@
 :root {
   --af-stroke-curve-base:    3px;
   --af-stroke-point-base:    4px;
-  --af-stroke-axis-base:     2px;
+  --af-stroke-axis-base:     1.8px; /* mirrored in GraphView.jsx (AXIS_STROKE_BASE_PX) for the arrow heads */
   --af-stroke-grid-base:     2px;
   --af-stroke-tick-base:     3px;
   --af-stroke-landmark-base: 4px;

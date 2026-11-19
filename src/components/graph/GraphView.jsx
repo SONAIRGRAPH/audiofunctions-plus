@@ -18,6 +18,10 @@ const math = create(all, config)
 // Number of x axis divisions (can be made configurable)
 const X_AXIS_DIVISIONS = 10;
 
+// Axis stroke width before the line width preference. Mirrors
+// --af-stroke-axis-base in styles/theme.css; keep both in sync.
+const AXIS_STROKE_BASE_PX = 1.4;
+
 // Axis numbers: rem instead of JSXGraph's 12px, so they follow the text size
 // preference without rebuilding the board (0.75rem = 12px at the default
 // size). The empty default style drops JSXGraph's inline Arial, so the font
@@ -344,6 +348,12 @@ const GraphView = () => {
         cssClass: "axis",
         needsRegularUpdate: true,
         highlight: false,
+        // The real width, as drawn by CSS (--af-stroke-axis). JSXGraph sizes the
+        // arrow heads from this attribute (default 1) and shortens the axis to fit
+        // them, but the SVG marker grows with the CSS width -- with a mismatch the
+        // tips stuck out of the view.
+        strokeWidth: AXIS_STROKE_BASE_PX * lineWidthScale,
+        highlightStrokeWidth: AXIS_STROKE_BASE_PX * lineWidthScale,
         ticks: {
           insertTicks: true,
           // Lengths in px. Their stroke already scales through CSS, so the
