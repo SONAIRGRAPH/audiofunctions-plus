@@ -44,6 +44,11 @@ function flatten(items, path = [], trail = [], depth = 0, out = []) {
   return out
 }
 
+/** True if an item or any of its descendants has `help`. */
+function anyHelp(items) {
+  return items.some((item) => item.help || (Array.isArray(item.children) && anyHelp(item.children)))
+}
+
 /** Spoken text for an entry — same order as the DOM. */
 function describeEntry(entry, labels) {
   if (!entry) return ''
@@ -225,6 +230,24 @@ export function useCommandPalette({ items, onClose, labels, initialPath = [] }) 
     setStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev))
   }, [])
 
+  /**
+   * The help key on an entry: runs its `help`, or says that there is none. The
+   * palette stays open -- `help` decides what happens, e.g. closing it first to open
+   * a dialog of the app.
+   */
+  const requestHelp = useCallback(
+    (entry) => {
+      if (!entry) return
+      interactedRef.current = true
+      if (entry.item.help) {
+        entry.item.help(entry.item)
+        return
+      }
+      announce(l.noHelp(entry.item.label))
+    },
+    [announce, l],
+  )
+
   const select = useCallback(
     (entry) => {
       if (!entry || entry.item.disabled) return
@@ -304,9 +327,18 @@ export function useCommandPalette({ items, onClose, labels, initialPath = [] }) 
     announce(announcement, { delay: ANNOUNCE_DELAY[cause] ?? 0 })
   }, [announcement, cause, signature, announce, cancelAnnouncement])
 
+  // Whether any command anywhere offers help. Only then do footer and opening help
+  // mention the help key -- a palette without help stays as it was.
+  const offersHelp = useMemo(() => anyHelp(items), [items])
+
   // Matches where the palette opened: the root, or the submenu of an `initialPath`. A
   // string, so an unstable `labels` object cannot retrigger the effect below.
-  const introduction = canGoBack ? l.footerSubmenu : l.footerRoot
+  const introduction = [
+    canGoBack ? l.footerSubmenu : l.footerRoot,
+    offersHelp ? l.footerHelp(l.helpKey) : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   // The keyboard help, spoken once per session after the dialog has announced itself.
   // Must stay below the effect above: on open that one runs first and may cancel a
@@ -336,5 +368,7 @@ export function useCommandPalette({ items, onClose, labels, initialPath = [] }) 
     select,
     back,
     setActiveByPointer,
+    requestHelp,
+    footer: introduction,
   }
 }

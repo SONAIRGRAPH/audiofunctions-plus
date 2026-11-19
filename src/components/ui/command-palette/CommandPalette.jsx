@@ -4,6 +4,11 @@ import { defaultLabels } from './labels'
 import { useCommandPalette } from './useCommandPalette'
 import './command-palette.css'
 
+/** Default help key: F1, without modifiers. */
+function isF1(event) {
+  return event.key === 'F1' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+}
+
 /**
  * Accessible command palette.
  *
@@ -17,8 +22,11 @@ import './command-palette.css'
  * @param {object}   [props.labels]  partial override, see `labels.js`. Pass a stable
  *   object — a fresh one per render churns the memoisation.
  * @param {string[]} [props.initialPath]  item ids to open inside, e.g. `['quick-options']`
+ * @param {(event: KeyboardEvent) => boolean} [props.helpShortcut]  which key asks for
+ *   the active entry's `help`, F1 by default. Pass a stable function, and rename
+ *   `labels.helpKey` to match.
  */
-export function CommandPalette({ open, onClose, items, labels, initialPath }) {
+export function CommandPalette({ open, onClose, items, labels, initialPath, helpShortcut = isF1 }) {
   const dialogRef = useRef(null)
   const openerRef = useRef(null)
   // Lives here rather than in PaletteBody so focus can be set after showModal().
@@ -79,13 +87,14 @@ export function CommandPalette({ open, onClose, items, labels, initialPath }) {
           labels={l}
           inputRef={inputRef}
           initialPath={initialPath}
+          helpShortcut={helpShortcut}
         />
       )}
     </dialog>
   )
 }
 
-function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
+function PaletteBody({ items, onClose, labels, inputRef, initialPath, helpShortcut }) {
   const baseId = useId()
   const listboxId = `${baseId}-listbox`
   const emptyOptionId = `${baseId}-empty`
@@ -110,6 +119,8 @@ function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
     select,
     back,
     setActiveByPointer,
+    requestHelp,
+    footer,
   } = useCommandPalette({ items, onClose, labels, initialPath })
 
   const registerRef = useCallback((key, node) => {
@@ -135,6 +146,15 @@ function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
   }
 
   function handleKeyDown(event) {
+    // Before the switch, so a custom help key may also be one of the keys below.
+    // Always claimed, also without help on the entry: F1 would otherwise open the
+    // browser's own help.
+    if (helpShortcut(event.nativeEvent)) {
+      event.preventDefault()
+      requestHelp(activeEntry)
+      return
+    }
+
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
@@ -184,7 +204,16 @@ function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
   }
 
   return (
-    <div className="cp-panel">
+    // Focus has to stay in the input, which handles every key. A click on an option,
+    // the breadcrumb or the footer would otherwise move focus away from it -- and
+    // arrows, Enter, Backspace and the help key would then go to the browser.
+    // Suppressing the focus change on mousedown keeps the click itself working.
+    <div
+      className="cp-panel"
+      onMouseDown={(event) => {
+        if (event.target !== inputRef.current) event.preventDefault()
+      }}
+    >
       {canGoBack && <p className="cp-breadcrumb">{breadcrumb.join(' › ')}</p>}
 
       <input
@@ -243,7 +272,7 @@ function PaletteBody({ items, onClose, labels, inputRef, initialPath }) {
         )}
       </div>
 
-      <p className="cp-footer">{canGoBack ? labels.footerSubmenu : labels.footerRoot}</p>
+      <p className="cp-footer">{footer}</p>
 
       {/* Two alternately written regions — see useAnnouncer. Both sit in the DOM
           empty from the start. */}

@@ -46,6 +46,14 @@ export const defaultLabels = {
   listUpdated: (count) => `List updated, ${count}`,
   submenuGone: (level, count) => `Submenu no longer available. ${level}, ${count}`,
 
+  // Help for the active entry (`item.help`)
+  /** Name of the help key, shown and spoken. Change it together with `helpShortcut`. */
+  helpKey: 'F1',
+  /** Appended to the footer and the opening help while any command offers help. */
+  footerHelp: (key) => `${key} explains the selected command.`,
+  /** Spoken when the help key is pressed on an entry without `help`. */
+  noHelp: (label) => `No explanation available for ${label}`,
+
   /**
    * Spoken names of shortcut tokens, merged over the table in shortcuts.js.
    * Example: `{ Mod: 'Strg', Shift: 'Umschalt' }`. Flat, so it cannot distinguish

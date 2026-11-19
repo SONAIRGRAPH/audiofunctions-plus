@@ -424,6 +424,7 @@ export const usePaletteItems = () => {
     label: "Navigation Help",
     keywords: toKeywords("navigation, shortcuts, keyboard, controls, help, guide, movement, cursor, zoom, pan, audio, instructions"),
     perform: () => openDialog("navigation-help"),
+    help: () => window.open('https://sonairgraph.github.io/audiofunctions-plus/', '_blank', 'noopener'),
     icon: <Move />,
   },
 
@@ -510,6 +511,7 @@ export const usePaletteItems = () => {
       label: "Import/Export",
       keywords: toKeywords("import, export, json, file, save, load, share, backup, restore, transfer, exchange"),
       icon: <Import />,
+      help: () => window.open('https://sonairgraph.github.io/audiofunctions-plus/sharing.html', '_blank', 'noopener'),
       children: [
         {
           id: "share",
