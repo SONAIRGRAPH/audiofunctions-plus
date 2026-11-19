@@ -1,4 +1,4 @@
-import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
+import { Volume2, VolumeX, MapPin, Eye, Play, CirclePlay, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, SlidersHorizontal, SlidersVertical, Plus, Edit, Palette, SunMoon, Sun, Moon,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
@@ -135,8 +135,16 @@ export const usePaletteItems = () => {
         },
 
         {
+          id: "play-function-space",
+          label: "Play/Pause",
+          keywords: toKeywords("play, pause, resume, continue, stop, toggle, cursor, current, position, here, space, listen, hear, sonify"),
+          perform: run("play-function-space"),
+          icon: <CirclePlay />,
+        },
+
+        {
           id: "play-function",
-          label: "Play Function",
+          label: "Play from Start",
           keywords: toKeywords("play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole"),
           perform: run("play-function"),
           icon: <Play />,
