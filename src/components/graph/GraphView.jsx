@@ -193,7 +193,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX, mouseExplorationEnabled, mouseExplorationEnabledRef } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -1004,10 +1004,15 @@ const GraphView = () => {
       }
     }
 
+    // Soft gate: JSXGraph pointer listeners stay registered so the board still
+    // tracks the pointer, but exploration (cursor + sonification) only runs when
+    // mouseExplorationEnabled is true. Read from the ref so toggling does not
+    // rebuild the board. Controlled by `toggle-mouse-exploration` in useCommands
+    // (bind that id in usePaletteItems to expose it in the command palette).
     const moveHandler = (event) => {
       if (board && board.jc) {
-        // Only handle mouse movement if not in keyboard exploration mode
-        if (!playActiveRef.current) {
+        // Only handle mouse movement if exploration is enabled and playback is idle
+        if (mouseExplorationEnabledRef.current && !playActiveRef.current) {
           cancelBoundsAnnouncement();
           setExplorationMode("mouse");
           const coords = board.getUsrCoordsOfMouse(event);
@@ -1055,6 +1060,19 @@ const GraphView = () => {
   useEffect(() => {
     playActiveRef.current = PlayFunction.active;
   }, [PlayFunction.active]);
+
+  // Keep the soft-toggle ref in step with state (same pattern as playActiveRef).
+  useEffect(() => {
+    mouseExplorationEnabledRef.current = mouseExplorationEnabled;
+    // Leaving mouse exploration mid-move: stop sonification and drop the idle timer.
+    if (!mouseExplorationEnabled) {
+      if (mouseTimeoutRef.current !== null) {
+        clearTimeout(mouseTimeoutRef.current);
+        mouseTimeoutRef.current = null;
+      }
+      setExplorationMode((mode) => (mode === "mouse" ? "none" : mode));
+    }
+  }, [mouseExplorationEnabled, mouseExplorationEnabledRef, setExplorationMode]);
 
   // Same for the speed, which the running movement loop reads from the ref so a change
   // takes effect mid-movement instead of only on the next playback.
