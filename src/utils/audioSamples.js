@@ -1,11 +1,18 @@
 import * as Tone from "tone";
 import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../audio/mixerBus";
+import { MIXER_CATALOG, builtInLevelDb, sampleNameOf } from "../audio/mixerCatalog";
 
 class AudioSampleManager {
   constructor() {
     this.samples = new Map(); // Store loaded samples
     this.samplePlayers = new Map(); // Store Tone.js players
     this.isInitialized = false;
+
+    // Mixer dialog preview: every catalog sample, at its built-in level
+    MIXER_CATALOG.forEach(({ id }) => {
+      const sampleName = sampleNameOf(id);
+      if (sampleName) mixerBus.registerPreview(id, () => this.playSample(sampleName));
+    });
   }
 
   // Prepare the sample manager. Do not call Tone.start() here: that must happen
@@ -64,23 +71,24 @@ class AudioSampleManager {
       const panner = new Tone.Panner(0);
       this._connectPlayerToMixer(sampleName, player, panner);
 
-      // Store both the player and metadata
-      this.samples.set(sampleName, {
+      // Store both the player and metadata. `ready` lets a playSample() that
+      // arrives while the file is still loading (e.g. the mixer preloads)
+      // wait for it instead of dropping the sound.
+      const entry = {
         player,
         panner,
         filename,
         path: samplePath,
-        loaded: false
-      });
+        loaded: false,
+        // Wait a bit more after loading to ensure the buffer is fully ready
+        ready: player.load(samplePath).then(() => new Promise(resolve => setTimeout(resolve, 50))),
+      };
+      this.samples.set(sampleName, entry);
 
-      // Load the sample and wait for it to be ready
-      await player.load(samplePath);
-
-      // Wait a bit more to ensure the buffer is fully loaded
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await entry.ready;
 
       // Mark as loaded
-      this.samples.get(sampleName).loaded = true;
+      entry.loaded = true;
       // console.log(`Audio sample ${sampleName} loaded successfully`);
 
     } catch (error) {
@@ -125,6 +133,16 @@ class AudioSampleManager {
       }
     }
 
+    // Still loading (started elsewhere): wait for it
+    if (sample && !sample.loaded && sample.ready) {
+      try {
+        await sample.ready;
+      } catch {
+        // loadSample() reports the failure
+      }
+      sample = this.samples.get(sampleName);
+    }
+
     if (!sample || !sample.loaded) {
       console.warn(`Audio sample ${sampleName} not loaded`);
       return;
@@ -144,10 +162,9 @@ class AudioSampleManager {
         this._connectPlayerToMixer(sampleName, player, sample.panner);
       }
 
-      // Apply options
-      if (options.volume !== undefined) {
-        player.volume.value = options.volume;
-      }
+      // Every sample plays at its built-in level; the one place it is set is
+      // mixerCatalog.js. The user's mixer levels apply on top of it.
+      player.volume.value = builtInLevelDb(MIXER_CHANNELS.sample(sampleName)) ?? 0;
 
       if (options.playbackRate !== undefined) {
         player.playbackRate = options.playbackRate;

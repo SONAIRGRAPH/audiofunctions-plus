@@ -7,8 +7,13 @@ import * as Tone from "tone";
  * Signal flow:
  *   source → [existing Channel / Player volume logic] → channelGain → groupGain → output
  *
- * Channel and group volumes are linear 0..1 and act as the base level that
- * application attenuation (e.g. mouse-distance channel.volume) multiplies against.
+ * The overall (master) volume is folded into every group gain instead of
+ * adding another node.
+ *
+ * Master, group and channel volumes are linear gains relative to each source's
+ * built-in level (1 = as designed, above 1 = boost). Application attenuation
+ * (e.g. mouse-distance channel.volume) multiplies against them. The slider
+ * limits per strip live in fader.js / mixerCatalog.js.
  */
 
 export const MIXER_GROUPS = Object.freeze({
@@ -32,6 +37,10 @@ export const MIXER_CHANNELS = Object.freeze({
 });
 
 const DEFAULT_VOLUME = 1;
+// Gains are relative to each source's built-in level and may boost it (a
+// quiet earcon can go up to 0 dB). The exact limit per strip comes from the
+// fader range (fader.js); this is only a guard against absurd values.
+const MAX_VOLUME = 100;
 
 const createControlState = (id, label, groupId = null) => ({
   id,
@@ -53,6 +62,13 @@ class MixerBus {
     // 0/1 gate for discrete batch: silence instruments until the valid start X
     // without muting earcons, ticks, or noise (those share the same master output).
     this._instrumentsGate = 1;
+    // Channel that alone may sound while a mixer preview plays (null = no preview)
+    this._previewSolo = null;
+    // Overall volume above the three groups (linear gain, 1 = unchanged). Not a mute: on/off
+    // stays with P and the master gate in GraphSonification.
+    this._masterVolume = DEFAULT_VOLUME;
+    // channelId -> function that plays a short sample of that channel
+    this._previews = new Map();
 
     Object.values(MIXER_GROUPS).forEach((groupId) => {
       this._groupState[groupId] = createControlState(
@@ -154,6 +170,18 @@ class MixerBus {
     return entry.gain;
   }
 
+  /**
+   * Create mixer state for a channel without any audio node. Lets the UI show
+   * and restore settings for a channel before its sound has played once; a
+   * later ensureChannel() keeps this state.
+   */
+  presetChannel(channelId, groupId, label = channelId) {
+    this._assertGroup(groupId);
+    if (this._channelState[channelId]) return;
+    this._channelState[channelId] = createControlState(channelId, label, groupId);
+    this._notify();
+  }
+
   getChannelInput(channelId) {
     const entry = this._channels.get(channelId);
     return entry ? entry.gain : null;
@@ -190,13 +218,24 @@ class MixerBus {
 
   getState() {
     return {
+      master: { volume: this._masterVolume },
       groups: { ...Object.fromEntries(
         Object.entries(this._groupState).map(([id, state]) => [id, { ...state }])
       ) },
+      // `previewable`: some engine has registered a preview for the channel
       channels: { ...Object.fromEntries(
-        Object.entries(this._channelState).map(([id, state]) => [id, { ...state }])
+        Object.entries(this._channelState).map(([id, state]) => [
+          id,
+          { ...state, previewable: this._previews.has(id) },
+        ])
       ) },
     };
+  }
+
+  setMasterVolume(volume) {
+    this._masterVolume = this._clampVolume(volume);
+    Object.values(MIXER_GROUPS).forEach((id) => this._applyGroupAudio(id));
+    this._notify();
   }
 
   setGroupVolume(groupId, volume) {
@@ -239,6 +278,78 @@ class MixerBus {
 
   getInstrumentsGate() {
     return this._instrumentsGate;
+  }
+
+  /**
+   * Apply many group/channel settings at once with a single notification.
+   * Unknown groups and channels without state are skipped.
+   * @param {{groups?: Record<string, {volume?: number, muted?: boolean}>,
+   *          channels?: Record<string, {volume?: number, muted?: boolean}>}} settings
+   */
+  applySettings({ master, groups = {}, channels = {} } = {}) {
+    if (master?.volume !== undefined) this._masterVolume = this._clampVolume(master.volume);
+    Object.entries(groups).forEach(([groupId, values]) => {
+      const state = this._groupState[groupId];
+      if (!state || !values) return;
+      if (values.volume !== undefined) state.volume = this._clampVolume(values.volume);
+      if (values.muted !== undefined) state.muted = Boolean(values.muted);
+      this._applyGroupAudio(groupId);
+    });
+    Object.entries(channels).forEach(([channelId, values]) => {
+      const state = this._channelState[channelId];
+      if (!state || !values) return;
+      if (values.volume !== undefined) state.volume = this._clampVolume(values.volume);
+      if (values.muted !== undefined) state.muted = Boolean(values.muted);
+      this._applyChannelAudio(channelId);
+    });
+    this._notify();
+  }
+
+  /**
+   * While a mixer preview plays, only this channel (and its group) may sound;
+   * null ends it. Other function tones or earcons that happen to fire stay
+   * silent. Multiplies with the user's volume and the instruments gate.
+   */
+  setPreviewSolo(channelId) {
+    this._previewSolo = channelId;
+    Object.values(MIXER_GROUPS).forEach((id) => this._applyGroupAudio(id));
+    Object.keys(this._channelState).forEach((id) => this._applyChannelAudio(id));
+  }
+
+  /**
+   * Sound engines register how to play a short sample of their channel, so
+   * the mixer can preview every source without owning it (samples, tick,
+   * pink noise, function tones). Notifies, since the UI shows a preview
+   * button only for channels that have one.
+   * @returns {() => void} unregister
+   */
+  registerPreview(channelId, play) {
+    this._previews.set(channelId, play);
+    this._notify();
+    return () => {
+      if (this._previews.get(channelId) !== play) return;
+      this._previews.delete(channelId);
+      this._notify();
+    };
+  }
+
+  hasPreview(channelId) {
+    return this._previews.has(channelId);
+  }
+
+  /**
+   * Play the registered preview of a channel. Resolves once the sound has
+   * started (samples may load first); false if there is no preview.
+   */
+  async runPreview(channelId) {
+    const play = this._previews.get(channelId);
+    if (!play) return false;
+    try {
+      await play();
+    } catch (error) {
+      console.error(`Mixer preview failed for "${channelId}":`, error);
+    }
+    return true;
   }
 
   subscribe(listener) {
@@ -285,20 +396,23 @@ class MixerBus {
     const userGain = state.muted ? 0 : state.volume;
     const gate =
       groupId === MIXER_GROUPS.instruments ? this._instrumentsGate : 1;
-    entry.gain.gain.value = userGain * gate;
+    const soloGroupId = this._previewSolo && this._channelState[this._previewSolo]?.groupId;
+    const solo = soloGroupId && soloGroupId !== groupId ? 0 : 1;
+    entry.gain.gain.value = userGain * gate * solo * this._masterVolume;
   }
 
   _applyChannelAudio(channelId) {
     const entry = this._channels.get(channelId);
     const state = this._channelState[channelId];
     if (!entry || !state) return;
-    entry.gain.gain.value = state.muted ? 0 : state.volume;
+    const solo = this._previewSolo && this._previewSolo !== channelId ? 0 : 1;
+    entry.gain.gain.value = (state.muted ? 0 : state.volume) * solo;
   }
 
   _clampVolume(volume) {
     const n = Number(volume);
     if (!Number.isFinite(n)) return DEFAULT_VOLUME;
-    return Math.max(0, Math.min(1, n));
+    return Math.max(0, Math.min(MAX_VOLUME, n));
   }
 
   _assertGroup(groupId) {

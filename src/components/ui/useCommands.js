@@ -23,7 +23,7 @@ import { nextStepSize, nextSpeed } from "../../utils/movementSettings";
 
 const playNavigationEarcon = (sampleName) => {
   try {
-    audioSampleManager.playSample(sampleName, { volume: -15 });
+    audioSampleManager.playSample(sampleName);
   } catch (error) {
     console.warn(`Failed to play ${sampleName} earcon:`, error);
   }
@@ -106,7 +106,7 @@ export const useCenterAtCursor = () => {
     const roundedX = Number(cursorX).toFixed(2);
     const roundedY = Number(cursorY).toFixed(2);
     announce(`View centered at cursor position: x = ${roundedX}, y = ${roundedY}`);
-    showInfoToast(`Centered at (${roundedX}, ${roundedY})`, 1500);
+    showInfoToast(`Centered at (${roundedX}, ${roundedY})`, 1500, { dismissOnGraphInteraction: true });
   };
 };
 
@@ -132,6 +132,8 @@ export function useCommands() {
     setStepSize,
     functionDefinitions,
     setFunctionDefinitions,
+    mouseExplorationEnabled,
+    setMouseExplorationEnabled,
   } = useGraphContext();
 
   const { announce } = useAnnouncement();
@@ -234,25 +236,28 @@ export function useCommands() {
         Math.abs(landmark.y - coord.y) < epsilon
       );
 
-      let message = `${functionName}: `;
+      let message = ``;
       if (landmarkAtPosition) {
         message += `"${landmarkAtPosition.label}" at \n`;
       }
-      message += `x = ${roundedX}, y = ${roundedY}`;
+      // message += `X = ${roundedX}, Y = ${roundedY}, [${functionName}]`;
+      message += `(${roundedX}, ${roundedY}) - ${functionName}`;
 
-      return message;
+      return { functionId: coord.functionId, text: message };
     });
 
-    const message = messages.join('\n');
-    announce(`Current Coordinates:\n\n${message}`);
-    showInfoToast(`Current Coordinates:\n\n${message}`);
+    const message = messages.map(m => m.text).join('\n');
+    // One toast per cursor, each with its own function's values
+    const perCursor = Object.fromEntries(messages.map(m => [m.functionId, m.text]));
+    announce(`${message}`);
+    showInfoToast(`${message}`, undefined, { perCursor, dismissOnGraphInteraction: true });
   };
 
   const showViewBounds = () => {
     const { xMin, xMax, yMin, yMax } = graphBounds;
-    const message = `Current View Bounds:\n\nX: [${Number(xMin).toFixed(2)}, ${Number(xMax).toFixed(2)}]\nY: [${Number(yMin).toFixed(2)}, ${Number(yMax).toFixed(2)}]`;
+    const message = `X: [${Number(xMin).toFixed(2)}, ${Number(xMax).toFixed(2)}]\nY: [${Number(yMin).toFixed(2)}, ${Number(yMax).toFixed(2)}]`;
     announce(message);
-    showInfoToast(message);
+    showInfoToast(message, undefined, { dismissOnGraphInteraction: true });
   };
 
   /** Step through the functions, wrapping around at either end. */
@@ -321,10 +326,25 @@ export function useCommands() {
     showInfoToast("Default view", 1500);
   };
 
+  /**
+   * Soft-toggles mouse graph exploration (cursor follow + sonification on move).
+   * In the command palette as "Freeze Mouse" / "Unfreeze Mouse" under Quick
+   * Options. Default remains enabled.
+   */
+  const toggleMouseExploration = () => {
+    const next = !mouseExplorationEnabled;
+    setMouseExplorationEnabled(next);
+    const message = next ? "Mouse exploration enabled" : "Mouse exploration disabled";
+    announce(message);
+    showInfoToast(message, 1500);
+  };
+
   // --- the commands ---------------------------------------------------------
 
   return {
     'toggle-audio': toggleAudio,
+    // Soft toggle for mouse exploration ("Freeze Mouse" in the palette).
+    'toggle-mouse-exploration': toggleMouseExploration,
     'play-function': () => setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })),
     // GraphView renders "play_space" differently from "play".
     'play-function-space': () => setPlayFunction(prev => ({ ...prev, source: "play_space", active: !prev.active })),

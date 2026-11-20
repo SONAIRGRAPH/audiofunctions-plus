@@ -13,20 +13,40 @@
 
       It knows nothing about the values a theme suggests, and does not need to:
       'auto' goes into the attribute as is, and the cascade in theme.css picks
-      the theme's value. Only 'system' is resolved here, because a theme cannot
-      suggest itself.
+      the theme's value. Only the themes that follow the OS light/dark setting
+      are resolved here (FOLLOWS, the `follows` field in theme.js), because a
+      theme cannot suggest itself.
     -->
     <script>
       (function () {
+        // Theme id -> [light, dark]; must match `follows` in src/utils/theme.js
+        var FOLLOWS = {
+          'system': ['light', 'dark'],
+          'high-contrast-system': ['high-contrast-light', 'high-contrast'],
+          'deuteranopia-protanopia-friendly-system': ['deuteranopia-protanopia-friendly', 'deuteranopia-protanopia-friendly-dark'],
+          'low-glare-system': ['low-glare-light', 'low-glare'],
+          'sepia-system': ['sepia', 'sepia-dark'],
+          'monochrome-system': ['monochrome-light', 'monochrome-dark']
+        };
         var prefs = [
           {
             key: 'theme',
             attr: 'data-theme',
-            values: ['system', 'light', 'dark', 'high-contrast', 'deuteranopia-protanopia-friendly'],
+            values: [
+              'system', 'light', 'dark',
+              'high-contrast-system', 'high-contrast-light', 'high-contrast',
+              'deuteranopia-protanopia-friendly-system', 'deuteranopia-protanopia-friendly', 'deuteranopia-protanopia-friendly-dark',
+              'low-glare-system', 'low-glare-light', 'low-glare',
+              'sepia-system', 'sepia', 'sepia-dark',
+              'monochrome-system', 'monochrome-light', 'monochrome-dark',
+              'high-contrast-yellow', 'high-contrast-navy'
+            ],
             fallback: 'system'
           },
           { key: 'lineWidth', attr: 'data-line-width', values: ['auto', 'thin', 'normal', 'thick', 'x-thick'], fallback: 'auto' },
-          { key: 'textSize', attr: 'data-text-size', values: ['auto', 'sm', 'normal', 'lg', 'xl'], fallback: 'auto' }
+          { key: 'textSize', attr: 'data-text-size', values: ['auto', 'sm', 'normal', 'lg', 'xl'], fallback: 'auto' },
+          { key: 'font', attr: 'data-font', values: ['auto', 'system', 'inter', 'atkinson', 'lexend', 'andika', 'comic-neue', 'opendyslexic'], fallback: 'auto' },
+          { key: 'spacing', attr: 'data-spacing', values: ['auto', 'normal', 'wide'], fallback: 'auto' }
         ];
         for (var i = 0; i < prefs.length; i++) {
           var pref = prefs[i];
@@ -37,8 +57,8 @@
           } catch (e) {
             /* localStorage blocked -- the fallback is good enough */
           }
-          if (pref.key === 'theme' && value === 'system') {
-            value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          if (pref.key === 'theme' && FOLLOWS[value]) {
+            value = FOLLOWS[value][window.matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0];
           }
           document.documentElement.setAttribute(pref.attr, value);
         }

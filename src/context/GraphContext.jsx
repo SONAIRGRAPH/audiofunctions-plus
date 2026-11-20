@@ -34,6 +34,16 @@ export const GraphContextProvider = ({ children }) => {
   const [evaluateFunctionAt, setEvaluateFunctionAt] = useState(null);
   const [stepSize, setStepSize] = useState(0.25); // Default value 0.5
   const [explorationMode, setExplorationMode] = useState("none"); // "none", "mouse", "keyboard_stepwise", "keyboard_smooth", "batch"
+  // Soft toggle for mouse-driven graph exploration (cursor follow + sonification on move).
+  // Default true keeps the current behaviour. Toggled by the `toggle-mouse-exploration`
+  // command in useCommands, offered in the palette as "Freeze Mouse".
+  const [mouseExplorationEnabled, setMouseExplorationEnabledState] = useState(true);
+  const mouseExplorationEnabledRef = useRef(true);
+  const setMouseExplorationEnabled = (next) => {
+    const value = typeof next === "function" ? next(mouseExplorationEnabledRef.current) : next;
+    mouseExplorationEnabledRef.current = value;
+    setMouseExplorationEnabledState(value);
+  };
   const [isShiftPressed, setIsShiftPressed] = useState(false); // Track Shift key state
   const [discreteBatchValidStartX, setDiscreteBatchValidStartX] = useState(null); // Valid start X position for discrete batch sonification
   const inputRefs = {
@@ -136,7 +146,7 @@ export const GraphContextProvider = ({ children }) => {
     // Play deny earcon if bounds were corrected (master gain mutes it when audio is off)
     if (boundsWereCorrected) {
       try {
-        audioSampleManager.playSample("deny", { volume: -15 });
+        audioSampleManager.playSample("deny");
       } catch (error) {
         console.warn("Could not play deny earcon:", error);
       }
@@ -185,6 +195,9 @@ export const GraphContextProvider = ({ children }) => {
         setStepSize,
         explorationMode,
         setExplorationMode,
+        mouseExplorationEnabled,
+        setMouseExplorationEnabled,
+        mouseExplorationEnabledRef,
         isShiftPressed,
         setIsShiftPressed,
         discreteBatchValidStartX,

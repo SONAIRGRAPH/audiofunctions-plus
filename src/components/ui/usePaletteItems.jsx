@@ -1,23 +1,40 @@
-import { Volume2, VolumeX, MapPin, Eye, Play, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
-  SwatchBook, Sun, Moon, SunMoon, Contrast, Plus, Edit,
+import { Volume2, VolumeX, MapPin, Eye, Play, CirclePlay, MousePointer, MousePointerBan, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
+  SwatchBook, SlidersHorizontal, SlidersVertical, Plus, Edit, Palette, SunMoon, Sun, Moon,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
 import { useMixer } from "../../context/MixerContext";
 import { getFunctionNameN, getFunctionInstrumentN, getActiveFunctions, getLandmarksN } from "../../utils/graphObjectOperations";
 import { useDialog } from "../../context/DialogContext";
-import { THEMES, setTheme } from "../../utils/theme";
+import {
+  THEME_FAMILIES,
+  THEME_MODES,
+  STANDALONE_THEMES,
+  themeFamilyOf,
+  getTheme,
+  getThemeMode,
+  setTheme,
+  selectThemeFamily,
+  selectThemeMode,
+} from "../../utils/theme";
 import { useAnnouncement } from '../../context/AnnouncementContext';
 import { useCommands } from "./useCommands";
 import { HOTKEYS, hotkeyFor, functionHotkey, landmarkHotkey } from "./hotkeys";
 
-// Icon per theme. A new theme only needs one line here -- label, keywords and
-// announcement live in the THEMES registry in utils/theme.js.
-const THEME_ICONS = {
-  system: SunMoon,
-  light: Sun,
-  dark: Moon,
-  "high-contrast": Contrast,
-  "deuteranopia-protanopia-friendly": Eye,
+// Light/dark entries of the Customization menu, as in the appearance dialog
+const MODE_LABELS = { system: "Follow System", light: "Light", dark: "Dark" };
+const MODE_ICONS = { system: SunMoon, light: Sun, dark: Moon };
+const MODE_KEYWORDS = {
+  system: "system, automatic, auto, os, operating, follow, default",
+  light: "light, bright, white, day",
+  dark: "dark, night, black",
+};
+const FAMILY_KEYWORDS = {
+  standard: "standard, normal, default, regular",
+  "high-contrast": "high contrast, contrast, low vision, vision, impaired, clear, sharp, bold",
+  "color-blind": "color blind, colorblind, color vision, red green, deuteranopia, protanopia, accessible colors",
+  "low-glare": "low glare, glare, dim, soft, muted, light sensitivity, photophobia, eye strain",
+  sepia: "sepia, warm, paper, reading, visual stress, irlen, eye strain",
+  monochrome: "monochrome, grayscale, greyscale, black and white, no color, achromatopsia, print",
 };
 
 // The palette expects a list of search aliases. Empty entries are dropped: several
@@ -54,7 +71,7 @@ const withHotkeys = (items) => items.map((item) => ({
  * changes that do not alter what the user sees.
  */
 export const usePaletteItems = () => {
-  const { functionDefinitions, graphSettings, focusChart, stepSize, PlayFunction } = useGraphContext();
+  const { functionDefinitions, graphSettings, focusChart, stepSize, PlayFunction, mouseExplorationEnabled } = useGraphContext();
   const { isAudioEnabled } = useMixer();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
@@ -89,6 +106,14 @@ export const usePaletteItems = () => {
   const activeFunctionIndex = activeFunction ? functionDefinitions.findIndex(f => f.id === activeFunction.id) : -1;
   const landmarks = activeFunction ? getLandmarksN(functionDefinitions, activeFunctionIndex) : [];
 
+  // Current palette and light/dark choice, for the hints in Customization.
+  // Read on every render like everything else here.
+  const currentThemeId = getTheme();
+  const currentFamily = themeFamilyOf(currentThemeId)?.family ?? null;
+  const currentMode = getThemeMode();
+  const currentPaletteLabel =
+    currentFamily?.label ?? STANDALONE_THEMES.find((theme) => theme.id === currentThemeId)?.shortLabel ?? "";
+
   return withHotkeys([
 
     // quick options
@@ -110,8 +135,16 @@ export const usePaletteItems = () => {
         },
 
         {
+          id: "play-function-space",
+          label: "Play/Pause",
+          keywords: toKeywords("play, pause, resume, continue, stop, toggle, cursor, current, position, here, space, listen, hear, sonify"),
+          perform: run("play-function-space"),
+          icon: <CirclePlay />,
+        },
+
+        {
           id: "play-function",
-          label: "Play Function",
+          label: "Play from Start",
           keywords: toKeywords("play, run, complete, automatic, auto, autoplay, batch, sonify, listen, hear, full, entire, whole"),
           perform: run("play-function"),
           icon: <Play />,
@@ -214,21 +247,50 @@ export const usePaletteItems = () => {
         icon: <MapPin />,
       })),
 
+      ...(landmarks.length > 0 ? [
+        {
+          id: "prev-landmark",
+          label: "Previous Landmark",
+          keywords: toKeywords("landmark, previous, back, left, jump, navigate, boundary, edge"),
+          perform: run("prev-landmark"),
+          icon: <MapPin />,
+        },
+
+        {
+          id: "next-landmark",
+          label: "Next Landmark",
+          keywords: toKeywords("landmark, next, forward, right, jump, navigate, boundary, edge"),
+          perform: run("next-landmark"),
+          icon: <MapPin />,
+        },
+      ] : []),
+
       {
-        id: "prev-landmark",
-        label: "Previous Landmark",
-        keywords: toKeywords("landmark, previous, back, left, jump, navigate, boundary, edge"),
-        perform: run("prev-landmark"),
-        icon: <MapPin />,
+        id: "add-landmark-quick",
+        label: "Add Landmark at Cursor",
+        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, quick, default"),
+        perform: run("add-landmark-quick"),
+        icon: <Plus />,
       },
 
       {
-        id: "next-landmark",
-        label: "Next Landmark",
-        keywords: toKeywords("landmark, next, forward, right, jump, navigate, boundary, edge"),
-        perform: run("next-landmark"),
-        icon: <MapPin />,
+        id: "add-landmark",
+        label: "Add and Edit Landmark at Cursor",
+        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, edit, label, settings, dialog"),
+        perform: run("add-landmark"),
+        icon: <FilePlus />,
       },
+
+
+      ...(landmarks.length > 0 ? [
+        {
+          id: "delete-landmark",
+          label: "Delete Landmark at Cursor",
+          keywords: toKeywords("delete, remove, landmark, bookmark, marker, erase, clear, cursor, position"),
+          perform: run("delete-landmark"),
+          icon: <Trash2 />,
+        },
+      ] : []),
 
       // Edit landmarks parent - only show if there are landmarks
       ...(landmarks.length > 0 ? [{
@@ -252,30 +314,6 @@ export const usePaletteItems = () => {
           icon: <Edit />,
         })),
       }] : []),
-
-      {
-        id: "add-landmark-quick",
-        label: "Add Landmark at Cursor",
-        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, quick, default"),
-        perform: run("add-landmark-quick"),
-        icon: <Plus />,
-      },
-
-      {
-        id: "add-landmark",
-        label: "Add and Edit Landmark at Cursor",
-        keywords: toKeywords("add, create, new, landmark, bookmark, marker, current, position, cursor, edit, label, settings, dialog"),
-        perform: run("add-landmark"),
-        icon: <FilePlus />,
-      },
-
-      {
-        id: "delete-landmark",
-        label: "Delete Landmark at Cursor",
-        keywords: toKeywords("delete, remove, landmark, bookmark, marker, erase, clear, cursor, position"),
-        perform: run("delete-landmark"),
-        icon: <Trash2 />,
-      },
 
     ],
   },
@@ -321,7 +359,7 @@ export const usePaletteItems = () => {
   // Diagram Options
   {
     id: "diagram-options",
-    label: "Diagram Options",
+    label: "Exploration Options",
     keywords: toKeywords("diagram, graph, chart, plot, options, settings, configuration, view, display, visual"),
     icon: <FileChartLine />,
     children: [
@@ -332,6 +370,17 @@ export const usePaletteItems = () => {
         keywords: toKeywords("view, bounds, range, limits, window, axis, xmin, xmax, ymin, ymax, zoom, scale, viewport, boundaries, change, set, configure"),
         perform: () => openDialog("change-graph-bound"),
         icon: <ChartArea />,
+      },
+
+      {
+        // Like the sound toggle, the label names what the command will do
+        id: "toggle-mouse-exploration",
+        label: mouseExplorationEnabled ? "Freeze Mouse" : "Unfreeze Mouse",
+        keywords: toKeywords("mouse, pointer, freeze, unfreeze, lock, unlock, disable, enable, exploration, follow, cursor, hover, move, touchpad, trackpad, ignore"),
+        perform: run("toggle-mouse-exploration"),
+        icon: mouseExplorationEnabled
+          ? <MousePointerBan />
+          : <MousePointer />,
       },
 
       {
@@ -386,25 +435,84 @@ export const usePaletteItems = () => {
     label: "Navigation Help",
     keywords: toKeywords("navigation, shortcuts, keyboard, controls, help, guide, movement, cursor, zoom, pan, audio, instructions"),
     perform: () => openDialog("navigation-help"),
+    help: () => window.open('https://sonairgraph.github.io/audiofunctions-plus/', '_blank', 'noopener'),
     icon: <Move />,
   },
 
-  // Change theme
+  // Customization: palette and light/dark as quick switches, structured like
+  // the appearance dialog, plus the full dialogs
   {
-    id: "change-theme",
-    label: "Change Theme",
-    keywords: toKeywords("theme, appearance, color, style, visual, dark, light, contrast, accessibility, colorblind"),
+    id: "customization",
+    label: "Customization",
+    keywords: toKeywords("customization, customize, appearance, theme, preset, color, style, visual, dark, light, contrast, accessibility, colorblind, settings, preferences, audio, sound, volume, mixer"),
     icon: <SwatchBook />,
-    children: THEMES.map((theme) => {
-      const Icon = THEME_ICONS[theme.id] ?? SwatchBook;
-      return {
-        id: `${theme.id}-theme`,
-        label: theme.label,
-        keywords: toKeywords(theme.keywords),
-        perform: () => { setTheme(theme.id); announce(theme.announcement); },
-        icon: <Icon />,
-      };
-    }),
+    children: [
+      {
+        id: "color-palette",
+        label: "Color Palette",
+        hint: `current: ${currentPaletteLabel}`,
+        keywords: toKeywords("color, colour, palette, theme, scheme, contrast, high contrast, color blind, colorblind, deuteranopia, protanopia, red, green, black on yellow, yellow on navy, sepia, low glare, glare, monochrome, grayscale, accessibility, vision, low vision"),
+        icon: <Palette />,
+        children: [
+          ...THEME_FAMILIES.map((family) => {
+            const Icon = family.icon;
+            return {
+              id: `${family.id}-palette`,
+              label: family.label,
+              keywords: toKeywords(`palette, theme, ${family.label}, ${FAMILY_KEYWORDS[family.id] ?? ""}`),
+              perform: () => { selectThemeFamily(family.id); announce(`Color palette: ${family.label}`); },
+              icon: <Icon />,
+            };
+          }),
+          // Special palettes without light/dark variants, after the families
+          ...STANDALONE_THEMES.map((theme) => {
+            const Icon = theme.icon;
+            return {
+              id: `${theme.id}-theme`,
+              label: theme.shortLabel,
+              keywords: toKeywords(theme.keywords),
+              perform: () => { setTheme(theme.id); announce(theme.announcement); },
+              icon: <Icon />,
+            };
+          }),
+        ],
+      },
+      {
+        id: "light-or-dark",
+        label: "Light or Dark",
+        hint: currentFamily ? `current: ${MODE_LABELS[currentMode]}` : "not available for the active color palette",
+        keywords: toKeywords("light, dark, mode, system, automatic, night, day, bright, black, white, theme"),
+        icon: <SunMoon />,
+        children: THEME_MODES.map((mode) => {
+          const Icon = MODE_ICONS[mode];
+          return {
+            id: `theme-mode-${mode}`,
+            label: MODE_LABELS[mode],
+            keywords: toKeywords(MODE_KEYWORDS[mode]),
+            // A standalone palette has a single scheme
+            disabled: !currentFamily,
+            perform: () => {
+              if (selectThemeMode(mode)) announce(`Light or dark: ${MODE_LABELS[mode]}`);
+            },
+            icon: <Icon />,
+          };
+        }),
+      },
+      {
+        id: "customize-appearance",
+        label: "Customize Appearance",
+        keywords: toKeywords("customize, appearance, settings, preferences, palette, line, width, thickness, text, size, font, toast, shortcut, highlight"),
+        perform: () => openDialog("customization"),
+        icon: <SlidersHorizontal />,
+      },
+      {
+        id: "audio-mixer",
+        label: "Audio Mixer",
+        keywords: toKeywords("mixer, audio, sound, volume, loudness, quiet, loud, mute, earcons, instruments, noise, tick, octave, clarinet, pitch, auto mute, modality, manual, settings, preferences"),
+        perform: () => openDialog("mixer"),
+        icon: <SlidersVertical />,
+      },
+    ],
   },
 
   // Import/Export - only show if not in read-only or full-restriction mode
@@ -414,6 +522,7 @@ export const usePaletteItems = () => {
       label: "Import/Export",
       keywords: toKeywords("import, export, json, file, save, load, share, backup, restore, transfer, exchange"),
       icon: <Import />,
+      help: () => window.open('https://sonairgraph.github.io/audiofunctions-plus/sharing.html', '_blank', 'noopener'),
       children: [
         {
           id: "share",

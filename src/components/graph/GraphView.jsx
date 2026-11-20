@@ -18,6 +18,20 @@ const math = create(all, config)
 // Number of x axis divisions (can be made configurable)
 const X_AXIS_DIVISIONS = 10;
 
+// Axis stroke width before the line width preference. Mirrors
+// --af-stroke-axis-base in styles/theme.css; keep both in sync.
+const AXIS_STROKE_BASE_PX = 1.4;
+
+// Axis numbers: rem instead of JSXGraph's 12px, so they follow the text size
+// preference without rebuilding the board (0.75rem = 12px at the default
+// size). The empty default style drops JSXGraph's inline Arial, so the font
+// preference from graph.css applies. Placement keeps JSXGraph's defaults.
+const AXIS_LABEL_STYLE = Object.freeze({
+  fontSize: 1.1,
+  fontUnit: "rem",
+  cssDefaultStyle: "",
+});
+
 // txtraw is a string of the form [[expr_1,ineq_1],[expr_2,ineq_2],..,[expr_n,ineq_n]]
 // where expr_i is an expression in the variable x that defines a function in the interval defined by ineq_i
 // for instance [[x+5,x < -4],[x^2,-4<=x < 1],[x-2,1<=x < 3],[5,x==3],[x-2,3 < x < 5],[3,5<= x]]
@@ -57,11 +71,11 @@ function createEndPoints(func,board,pointSize){
     const endpoints = []; // the endpoints of the intervals
     for (i=0;i< l.length;i++){
         ineq = transformAssingnments(l[i].items[1]); // the inequality or equality of ith item, we change assignments to equalities
-        fn = l[i].items[0]; // the expression of the function in the ith item 
+        fn = l[i].items[0]; // the expression of the function in the ith item
         if (fn.type == "AssignmentNode"){ // if it is an assignment, we get the expression of the assignment
           fn=fn.value;
         }
-        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment  
+        if (fn.type == "FunctionAssignmentNode"){ // if it is an assignment, we get the expression of the assignment
           fn=fn.expr;
         }
         console.log("Processing item ", i, " with function: ", fn, " and condition: ", ineq.toString());
@@ -179,7 +193,7 @@ const GraphView = () => {
   const wrapperRef = useRef(null);
   const graphContainerRef = useRef(null);
   const boardRef = useRef(null);
-  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX } = useGraphContext();
+  const { functionDefinitions, cursorCoords, setCursorCoords, setInputErrors, graphBounds, PlayFunction, playActiveRef, playSpeedRef, updateCursor, setUpdateCursor, setEvaluateFunctionAt, setPlayFunction, timerRef, stepSize, setExplorationMode, explorationMode, setDiscreteBatchValidStartX, mouseExplorationEnabled, mouseExplorationEnabledRef } = useGraphContext();
   const { announce } = useAnnouncement();
   const { getInstrumentByName } = useInstruments();
   let endpoints = [];
@@ -334,6 +348,12 @@ const GraphView = () => {
         cssClass: "axis",
         needsRegularUpdate: true,
         highlight: false,
+        // The real width, as drawn by CSS (--af-stroke-axis). JSXGraph sizes the
+        // arrow heads from this attribute (default 1) and shortens the axis to fit
+        // them, but the SVG marker grows with the CSS width -- with a mismatch the
+        // tips stuck out of the view.
+        strokeWidth: AXIS_STROKE_BASE_PX * lineWidthScale,
+        highlightStrokeWidth: AXIS_STROKE_BASE_PX * lineWidthScale,
         ticks: {
           insertTicks: true,
           // Lengths in px. Their stroke already scales through CSS, so the
@@ -342,6 +362,15 @@ const GraphView = () => {
           minorHeight: 3 * lineWidthScale,
           ticksDistance: stepSize, // Tick-Abstand anpassen
         },
+      },
+      // Tick labels must go here, not into `axis`: initBoard merges the
+      // board's defaultAxes (fontSize 12) after `axis`, which would override
+      // the size but keep the unit -- 12rem.
+      // Offsets in px (JSXGraph default: x 3, y 6), a bit wider and growing
+      // with the line width, since the tick marks get longer with it.
+      defaultAxes: {
+        x: { ticks: { label: { ...AXIS_LABEL_STYLE, offset: [0, -(7 + 3 * lineWidthScale)] } } },
+        y: { ticks: { label: { ...AXIS_LABEL_STYLE, offset: [-(10 + 3 * lineWidthScale), 0] } } },
       },
       zoom: { enabled: false, needShift: false },
       pan: { enabled: false, needShift: false, needTwoFingers: true},
@@ -397,7 +426,7 @@ const GraphView = () => {
     const openingX = clampX(graphBounds.xMin, graphBounds).x;
 
     // Create graph objects and cursors for each active function
-    activeFunctions.forEach((func, funcIndex) => {
+    activeFunctions.forEach((func) => {
       let graphFormula;
       let expr;
       let hasError = false;
@@ -516,12 +545,11 @@ const GraphView = () => {
       parsedExpressionsRef.current.set(func.id, expr);
 
       // Curve color: an explicit func.color takes precedence and is passed as
-      // an attribute. Without one the curve only gets a class from the theme
-      // palette (--af-curve-1 ... --af-curve-6), so it recolors on a theme
-      // switch without rebuilding the board.
-      const curvePaletteClass = `curve-${(funcIndex % 6) + 1}`;
+      // an attribute. Without one every curve uses the theme's main curve color
+      // (.curve-1 -> --af-curve-1), set through a class so it recolors on a
+      // theme switch without rebuilding the board.
       const graphObject = board.create("functiongraph", [graphFormula], {
-        cssClass: func.color ? "curve" : `curve ${curvePaletteClass}`,
+        cssClass: func.color ? "curve" : "curve curve-1",
         fixed: true,
         highlight: false,
         ...(func.color ? { strokeColor: func.color } : {}),
@@ -976,10 +1004,15 @@ const GraphView = () => {
       }
     }
 
+    // Soft gate: JSXGraph pointer listeners stay registered so the board still
+    // tracks the pointer, but exploration (cursor + sonification) only runs when
+    // mouseExplorationEnabled is true. Read from the ref so toggling does not
+    // rebuild the board. Controlled by `toggle-mouse-exploration` in useCommands
+    // ("Freeze Mouse" in the command palette).
     const moveHandler = (event) => {
       if (board && board.jc) {
-        // Only handle mouse movement if not in keyboard exploration mode
-        if (!playActiveRef.current) {
+        // Only handle mouse movement if exploration is enabled and playback is idle
+        if (mouseExplorationEnabledRef.current && !playActiveRef.current) {
           cancelBoundsAnnouncement();
           setExplorationMode("mouse");
           const coords = board.getUsrCoordsOfMouse(event);
@@ -1028,6 +1061,19 @@ const GraphView = () => {
     playActiveRef.current = PlayFunction.active;
   }, [PlayFunction.active]);
 
+  // Keep the soft-toggle ref in step with state (same pattern as playActiveRef).
+  useEffect(() => {
+    mouseExplorationEnabledRef.current = mouseExplorationEnabled;
+    // Leaving mouse exploration mid-move: stop sonification and drop the idle timer.
+    if (!mouseExplorationEnabled) {
+      if (mouseTimeoutRef.current !== null) {
+        clearTimeout(mouseTimeoutRef.current);
+        mouseTimeoutRef.current = null;
+      }
+      setExplorationMode((mode) => (mode === "mouse" ? "none" : mode));
+    }
+  }, [mouseExplorationEnabled, mouseExplorationEnabledRef, setExplorationMode]);
+
   // Same for the speed, which the running movement loop reads from the ref so a change
   // takes effect mid-movement instead of only on the next playback.
   useEffect(() => {
@@ -1058,7 +1104,7 @@ const GraphView = () => {
   useEffect(() => {
     // Detect Firefox
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    
+
     if (isFirefox) {
       // Skip resize handling for Firefox to avoid JSXGraph bugs
       return;
@@ -1075,7 +1121,7 @@ const GraphView = () => {
             const container = graphContainerRef.current;
             const width = container.clientWidth;
             const height = container.clientHeight;
-            
+
             // Only resize if dimensions are valid
             if (width > 0 && height > 0 && !isNaN(width) && !isNaN(height)) {
               boardRef.current.resizeContainer();

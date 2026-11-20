@@ -37,10 +37,15 @@ path[id*="_ticks_"] {
   stroke: var(--af-graph-axis);
 }
 
+/* Axis numbers. Placement is left to JSXGraph: it aligns each label with
+   the text-anchor / dy attributes (x: centered below the tick, y: right of
+   it, vertically centered). Setting text-anchor or dominant-baseline here
+   would override those attributes and shift every label off its tick.
+   Size: set in GraphView in rem, so it follows the text size preference. */
 text.JXGtext {
   fill: var(--af-graph-text);
-  dominant-baseline: middle;
-  text-anchor: end;
+  font-family: var(--af-font);
+  font-variant-numeric: tabular-nums;
 }
 
 .grid {
@@ -68,6 +73,10 @@ text.JXGtext {
 
 /* ---------------------------------------------------------------------------
    Points
+
+   --af-marker-rim-scale lets a theme thin or widen the outline of filled
+   markers (closed endpoints, points, landmarks). Open endpoints are left out
+   on purpose -- their ring is the marker.
    --------------------------------------------------------------------------- */
 .endpoint-open {
   fill: var(--af-endpoint-open-fill);
@@ -78,13 +87,13 @@ text.JXGtext {
 .endpoint-closed {
   fill: var(--af-endpoint-closed-fill);
   stroke: var(--af-endpoint-closed-stroke);
-  stroke-width: var(--af-stroke-point);
+  stroke-width: calc(var(--af-stroke-point) * var(--af-marker-rim-scale, 1));
 }
 
 .isolated-point {
   fill: var(--af-point-fill);
   stroke: var(--af-point-stroke);
-  stroke-width: var(--af-stroke-point);
+  stroke-width: calc(var(--af-stroke-point) * var(--af-marker-rim-scale, 1));
 }
 
 
@@ -113,5 +122,5 @@ text.JXGtext {
 .landmark-square {
   fill: var(--af-landmark-fill);
   stroke: var(--af-landmark-stroke);
-  stroke-width: var(--af-stroke-landmark);
+  stroke-width: calc(var(--af-stroke-landmark) * var(--af-marker-rim-scale, 1));
 }

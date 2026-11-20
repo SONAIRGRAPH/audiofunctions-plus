@@ -106,6 +106,20 @@ export function getFunctionCount(functionDefinitions) {
 }
 
 /**
+ * Default name for a new function: "Function N" with the lowest N no other
+ * function is called. Counting the functions instead would repeat a name
+ * after a deletion (delete Function 1 of two, add one: two "Function 2").
+ * @param {Array} functionDefinitions - Array of function definitions
+ * @returns {string} e.g. "Function 1"
+ */
+export function nextFunctionName(functionDefinitions) {
+  const taken = new Set((functionDefinitions ?? []).map(func => func.functionName));
+  let n = 1;
+  while (taken.has(`Function ${n}`)) n++;
+  return `Function ${n}`;
+}
+
+/**
  * Get points of interest for the nth function
  * @param {Array} functionDefinitions - Array of function definitions
  * @param {number} n - Function index (0-based)

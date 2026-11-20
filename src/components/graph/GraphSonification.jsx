@@ -18,6 +18,7 @@ import landmarkEarconManager from "../../utils/landmarkEarcons";
 import { horizontalEdge, resolveBorderEvent } from "../../utils/boundaryGeometry";
 import { landmarkWindows, resolveLandmarkHit, LANDMARK_COOLDOWN_MS } from "../../utils/landmarkGeometry";
 import mixerBus, { MIXER_GROUPS, MIXER_CHANNELS } from "../../audio/mixerBus";
+import { builtInLevelDb } from "../../audio/mixerCatalog";
 
 const GraphSonification = () => {
   const {
@@ -30,7 +31,7 @@ const GraphSonification = () => {
     isShiftPressed, // <-- get Shift key state
     discreteBatchValidStartX // <-- get valid start X position for discrete batch sonification
   } = useGraphContext();
-  const { isOutputOpen, isIdleFading, AUDIO_IDLE_FADE_DURATION_MS, clarinetOctave } = useMixer();
+  const { isOutputOpen, isIdleFading, isPreviewing, AUDIO_IDLE_FADE_DURATION_MS, clarinetOctave } = useMixer();
 
   // Refs to track previous states for event detection
   const prevCursorCoordsRef = useRef(new Map()); // Track previous cursor positions
@@ -41,7 +42,8 @@ const GraphSonification = () => {
   const lastTickIndexRef = useRef(null); // Track last ticked index
   const tickSynthRef = useRef(null); // Reference to tick synth
   const tickChannelRef = useRef(null); // Reference to tick channel for panning
-  const masterGainRef = useRef(null); // Last node before Destination; gain 1/0 from mixer master gate
+  const masterGainRef = useRef(null); // Gain 1/0 from the mixer master gate, feeds the limiter
+  const limiterRef = useRef(null); // Last node before Destination; catches clipping from mixer boosts
   const chartBorderLastPlayedRef = useRef(0); // When the chart border earcon last sounded
   const borderEdgeRef = useRef(null); // Horizontal border the cursor currently occupies: "left" | "right" | null
   const openingEdgeSeededRef = useRef(false); // Opening placement on the left edge is not a navigation into it
@@ -50,6 +52,7 @@ const GraphSonification = () => {
   const { isEditFunctionDialogOpen } = useDialog();
   const instrumentsRef = useRef(new Map()); // Map to store instrument references
   const channelsRef = useRef(new Map()); // Map to store channel references
+  const knownFunctionIdsRef = useRef(new Set()); // Function ids of the last channel setup, to detect deletions
   const lastScheduledTimeRef = useRef(new Map()); // functionId -> last time scheduled on that instrument's Tone timeline
   const lastPitchClassesRef = useRef(new Map()); // Map to store last pitch class for discrete instruments
   const pinkNoiseRef = useRef(null); // Reference to pink noise synthesizer
@@ -59,7 +62,12 @@ const GraphSonification = () => {
   const batchStartEarconPlayedRef = useRef(false); // Track if chart_border_start earcon has been played for current batch
   const wasAtBatchStartEdgeRef = useRef(false); // Track if cursor was at the batch start edge on the previous tick
   const prevOutputOpenRef = useRef(isOutputOpen);
-  const NO_Y_VOLUME_DB = -25;
+  const PINK_NOISE_PREVIEW_S = 1;
+  const FUNCTION_TONE_PREVIEW_S = 0.8;
+  const PREVIEW_TAIL_MS = 3000;
+  // Latest version of previewFunctionTone; the preview registered with the
+  // mixer outlives renders, so it calls through this ref.
+  const previewFunctionToneRef = useRef(null);
 
   // Connect a Tone.Channel through its dedicated mixer gain into the instruments group
   const connectInstrumentChannelToMixer = (functionId, channel, label) => {
@@ -72,11 +80,14 @@ const GraphSonification = () => {
     channel.connect(mixerGain);
   };
 
-  // Last node before the audio device: mixer groups feed this. SonificationMuteController
+  // Mixer groups feed the master gain. SonificationMuteController
   // (P, AUTO idle, command palette / dialogs) drives the target; the graph keeps running.
+  // The limiter is the last node before the audio device: the mixer can boost
+  // quiet sounds, and several loud ones at once must not clip.
   useEffect(() => {
     if (!masterGainRef.current) {
-      masterGainRef.current = new Tone.Gain(0).toDestination();
+      limiterRef.current = new Tone.Limiter(-1).toDestination();
+      masterGainRef.current = new Tone.Gain(0).connect(limiterRef.current);
       mixerBus.initialize(masterGainRef.current);
       audioSampleManager.reconnectAllToMixer();
     }
@@ -85,6 +96,10 @@ const GraphSonification = () => {
       if (masterGainRef.current) {
         masterGainRef.current.dispose();
         masterGainRef.current = null;
+      }
+      if (limiterRef.current) {
+        limiterRef.current.dispose();
+        limiterRef.current = null;
       }
     };
   }, []);
@@ -132,7 +147,7 @@ const GraphSonification = () => {
           sustain: 0,
           release: 0
         },
-        volume: -18 // Lower volume in dB
+        volume: builtInLevelDb(MIXER_CHANNELS.tick) // Built-in level, set in mixerCatalog.js
       });
 
       // Create a channel for the tick synth to handle panning
@@ -152,7 +167,14 @@ const GraphSonification = () => {
       tickSynthRef.current.connect(tickChannelRef.current);
     }
 
+    // Mixer dialog preview: one centered tick, same note as while moving
+    const unregisterPreview = mixerBus.registerPreview(MIXER_CHANNELS.tick, () => {
+      if (tickChannelRef.current) tickChannelRef.current.pan.value = 0;
+      tickSynthRef.current?.triggerAttackRelease("C6", "16n");
+    });
+
     return () => {
+      unregisterPreview();
       if (tickSynthRef.current) {
         tickSynthRef.current.dispose();
         tickSynthRef.current = null;
@@ -170,7 +192,8 @@ const GraphSonification = () => {
   useEffect(() => {
     if (!pinkNoiseRef.current) {
       pinkNoiseRef.current = new Tone.Noise("pink");
-      pinkNoiseRef.current.volume.value = -36; // dB - low volume background sound
+      // Low background level, set in mixerCatalog.js
+      pinkNoiseRef.current.volume.value = builtInLevelDb(MIXER_CHANNELS.pinkNoise);
       const noiseMixerGain = mixerBus.ensureChannel(
         MIXER_CHANNELS.pinkNoise,
         MIXER_GROUPS.noise,
@@ -179,7 +202,16 @@ const GraphSonification = () => {
       pinkNoiseRef.current.connect(noiseMixerGain);
     }
 
+    // Mixer dialog preview: one second of noise, unless it is already running
+    const unregisterPreview = mixerBus.registerPreview(MIXER_CHANNELS.pinkNoise, () => {
+      const noise = pinkNoiseRef.current;
+      if (!noise || noise.state === "started") return;
+      noise.start();
+      noise.stop(Tone.now() + PINK_NOISE_PREVIEW_S);
+    });
+
     return () => {
+      unregisterPreview();
       if (pinkNoiseRef.current) {
         pinkNoiseRef.current.dispose();
         pinkNoiseRef.current = null;
@@ -234,7 +266,7 @@ const GraphSonification = () => {
         });
 
         // Route through dedicated mixer gain → instruments group → master
-        const label = func.functionName || func.instrument || `Instrument ${functionId}`;
+        const label = func.functionName || `Function ${index + 1}`;
         connectInstrumentChannelToMixer(functionId, channel, label);
 
         channelsRef.current.set(functionId, channel);
@@ -247,18 +279,22 @@ const GraphSonification = () => {
       }
     });
 
-    // Clean up unused channels
-    Array.from(channelsRef.current.keys()).forEach(functionId => {
-      if (!getFunctionById(functionDefinitions, functionId)) {
-        const channel = channelsRef.current.get(functionId);
-        if (channel) {
-          channel.disconnect();
-          channel.dispose();
-        }
-        channelsRef.current.delete(functionId);
-        mixerBus.removeChannel(MIXER_CHANNELS.instrument(functionId));
+    // Clean up deleted functions. The cleanup below empties channelsRef before
+    // every run, so deletions are detected against the ids of the previous run
+    // instead. A deleted function also loses its mixer level: new functions
+    // reuse the lowest free id (f1, f2, …) and must not inherit it. Editing a
+    // function keeps its id and therefore its level.
+    knownFunctionIdsRef.current.forEach(functionId => {
+      if (getFunctionById(functionDefinitions, functionId)) return;
+      const channel = channelsRef.current.get(functionId);
+      if (channel) {
+        channel.disconnect();
+        channel.dispose();
       }
+      channelsRef.current.delete(functionId);
+      mixerBus.removeChannel(MIXER_CHANNELS.instrument(functionId));
     });
+    knownFunctionIdsRef.current = new Set(functionDefinitions.map(func => func.id));
 
     return () => {
       channelsRef.current.forEach((channel, functionId) => {
@@ -310,6 +346,7 @@ const GraphSonification = () => {
     });
 
     // Set up instruments for active functions
+    const unregisterPreviews = [];
     activeFunctions.forEach(func => {
       if (!instrumentsRef.current.has(func.id)) {
         const functionIndex = getFunctionIndexById(functionDefinitions, func.id);
@@ -332,7 +369,17 @@ const GraphSonification = () => {
       }
     });
 
+    // Every function gets a preview; inactive ones use a temporary instrument
+    functionDefinitions.forEach((func) => {
+      unregisterPreviews.push(
+        mixerBus.registerPreview(MIXER_CHANNELS.instrument(func.id), () =>
+          previewFunctionToneRef.current?.(func.id)
+        )
+      );
+    });
+
     return () => {
+      unregisterPreviews.forEach((unregister) => unregister());
       instrumentsRef.current.forEach(instrument => {
         if (instrument.dispose) {
           instrument.dispose();
@@ -533,6 +580,74 @@ const GraphSonification = () => {
     }
   };
 
+  /**
+   * Mixer dialog preview: one short tone of a function with its instrument,
+   * centered, at full channel level. Pitch is the middle of the range -- the
+   * middle pitch class for discrete instruments, the y center (with the
+   * clarinet octave) for continuous ones.
+   *
+   * Usually only one function is active and has an instrument. Inactive ones
+   * get a temporary instrument for the preview, wired straight into their
+   * mixer channel (their Tone.Channel is muted while inactive).
+   *
+   * Release goes through a timer, not a scheduled time: the organ ignores
+   * the time argument and would cut the tone right away.
+   */
+  previewFunctionToneRef.current = (functionId) => {
+    const functionIndex = getFunctionIndexById(functionDefinitions, functionId);
+    if (functionIndex < 0) return;
+    const instrumentConfig = getInstrumentByName(getFunctionInstrumentN(functionDefinitions, functionIndex));
+    if (!instrumentConfig) return;
+
+    const pitchClasses = instrumentConfig.availablePitchClasses ?? [];
+    const frequency =
+      instrumentConfig.instrumentType === InstrumentFrequencyType.discretePitchClassBased && pitchClasses.length > 0
+        ? Tone.Frequency(pitchClasses[Math.floor(pitchClasses.length / 2)]).toFrequency()
+        : calculateFrequency((graphBounds.yMin + graphBounds.yMax) / 2);
+    if (!frequency) return;
+
+    const releaseMs = FUNCTION_TONE_PREVIEW_S * 1000;
+    const instrument = instrumentsRef.current.get(functionId);
+    const channel = channelsRef.current.get(functionId);
+
+    try {
+      if (instrument && channel) {
+        // Active function: its own instrument, like during exploration
+        channel.pan.value = 0;
+        channel.volume.value = 0;
+        instrument.triggerAttack(frequency, nextScheduledTime(functionId));
+        setTimeout(() => stopTone(functionId), releaseMs);
+        // The cursor pitch has to sound again once the preview is over
+        lastPitchClassesRef.current.delete(functionId);
+        return;
+      }
+
+      const output = mixerBus.getChannelInput(MIXER_CHANNELS.instrument(functionId));
+      if (!output || !instrumentConfig.createInstrument) return;
+      const temporary = instrumentConfig.createInstrument();
+      temporary.connect(output);
+      temporary.triggerAttack(frequency, Tone.now());
+      setTimeout(() => {
+        try {
+          temporary.triggerRelease(Tone.now());
+        } catch {
+          // already disposed
+        }
+      }, releaseMs);
+      // Dispose after the release tail (organ reverb rings for ~2 s)
+      setTimeout(() => {
+        try {
+          temporary.disconnect();
+          temporary.dispose();
+        } catch {
+          // ignore disposal races
+        }
+      }, releaseMs + PREVIEW_TAIL_MS);
+    } catch (error) {
+      console.warn(`Error previewing tone for function ${functionId}:`, error);
+    }
+  };
+
   const stopAllTones = () => {
     instrumentsRef.current.forEach((instrument, functionId) => {
       stopTone(functionId);
@@ -553,6 +668,11 @@ const GraphSonification = () => {
 
   // Main effect for processing cursor coordinates and triggering sonification
   useEffect(() => {
+    // A mixer preview opens the output while the user is in the mixer dialog,
+    // not exploring. Replaying the cursor position now would sound the
+    // function's cursor pitch on top of the preview tone.
+    if (isPreviewing) return;
+
     if (!cursorCoords) {
       stopAllTones();
       stopPinkNoise();
@@ -663,7 +783,6 @@ const GraphSonification = () => {
       // If we were at the start edge before and now we're not, play the start earcon once
       if (wasAtBatchStartEdgeRef.current && !isAtStartEdgeNow && !batchStartEarconPlayedRef.current) {
         playAudioSample("chart_border_start", {
-          volume: -15,
           pan: calculatePan(parseFloat(cursorCoords[0].x))
         });
         batchStartEarconPlayedRef.current = true;
@@ -705,7 +824,6 @@ const GraphSonification = () => {
         stopAllTones();
 
         playAudioSample("no_y", {
-          volume: NO_Y_VOLUME_DB,
           pan: calculatePan(parseFloat(cursorCoords[0].x))
         });
         boundaryTriggeredRef.current.set('no_visible_functions', now);
@@ -722,7 +840,6 @@ const GraphSonification = () => {
 
         if (!lastTriggered || (now - lastTriggered) > 200) { // 200ms cooldown
           playAudioSample("no_y", {
-            volume: NO_Y_VOLUME_DB,
             pan: calculatePan(parseFloat(cursorCoords[0].x))
           });
           boundaryTriggeredRef.current.set('some_out_of_bounds', now);
@@ -794,7 +911,7 @@ const GraphSonification = () => {
         stopTone(functionId);
       }
     });
-  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isOutputOpen, clarinetOctave]);
+  }, [cursorCoords, functionDefinitions, graphBounds, stepSize, explorationMode, isOutputOpen, isPreviewing, clarinetOctave]);
 
   /**
    * Resolve the left/right chart border once per frame and sound the earcon when it
@@ -840,7 +957,7 @@ const GraphSonification = () => {
     borderEdgeRef.current = edge;
 
     if (play && !suppressEarcon) {
-      playAudioSample("chart_border", { volume: -20, pan: calculatePan(x) });
+      playAudioSample("chart_border", { pan: calculatePan(x) });
       chartBorderLastPlayedRef.current = now;
     } else if (play && suppressEarcon) {
       // Still advance the cooldown clock so a later non-batch border does not burst
@@ -877,7 +994,7 @@ const GraphSonification = () => {
       const now = Date.now();
 
       if (!lastTriggered || (now - lastTriggered) > 300) { // 300ms cooldown
-        playAudioSample("y_axis_intersection", { volume: -12, pan: calculatePan(x) });
+        playAudioSample("y_axis_intersection", { pan: calculatePan(x) });
         yAxisTriggeredRef.current.set(functionId, now);
         // console.log(`Y-axis intersection event triggered for function ${functionId} at x=${x} (batch mode: ${explorationMode === "batch"})`);
       }
@@ -980,13 +1097,13 @@ const GraphSonification = () => {
     try {
       switch (eventType) {
         case 'chart_border':
-          await playAudioSample('chart_border', { volume: -20 });
+          await playAudioSample('chart_border');
           break;
         case 'no_y':
-          await playAudioSample('no_y', { volume: -25 });
+          await playAudioSample('no_y');
           break;
         case 'y_axis_intersection':
-          await playAudioSample('y_axis_intersection', { volume: -12 });
+          await playAudioSample('y_axis_intersection');
           break;
         default:
           console.warn(`Unknown event type: ${eventType}`);

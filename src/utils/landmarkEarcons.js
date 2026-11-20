@@ -45,7 +45,6 @@ class LandmarkEarconManager {
       case "diamond":
         sampleName = "landmark_diamond";
         break;
-      case "triangle":
       default:
         // Changed: use triangle sample as default instead of diamond
         sampleName = "landmark_triangle";
@@ -53,10 +52,8 @@ class LandmarkEarconManager {
     }
 
     try {
-      audioSampleManager.playSample(sampleName, {
-        volume: options.volume !== undefined ? options.volume : -12,
-        pan: options.pan
-      });
+      // Level comes from mixerCatalog.js, like every earcon
+      audioSampleManager.playSample(sampleName, { pan: options.pan });
     } catch (error) {
       console.error(`Error playing landmark sample for shape ${shape}:`, error);
     }

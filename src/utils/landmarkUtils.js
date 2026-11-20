@@ -209,7 +209,7 @@ export function addLandmarkAtCursorPosition(
 
   if (existingResult.found) {
     if (!openEditor) {
-      const message = `Landmark already exists at x = ${x.toFixed(2)}, y = ${y.toFixed(2)}`;
+      const message = `Landmark already exists at (${x.toFixed(2)}, ${y.toFixed(2)})`;
       announce(message);
       showInfoToast(message, 2000);
       return { success: false, message };
@@ -248,7 +248,7 @@ export function addLandmarkAtCursorPosition(
 
   // Created with its defaults -- report it instead of opening the editor
   if (!openEditor) {
-    const message = `${newLandmark.label} created at x = ${x.toFixed(2)}, y = ${y.toFixed(2)}, shortcut ${result.shortcut}`;
+    const message = `${newLandmark.label} created at (${x.toFixed(2)}, ${y.toFixed(2)}), [Shortcut: ${result.shortcut}]`;
     announce(message);
     showInfoToast(message, 2000);
     return { success: true, message };

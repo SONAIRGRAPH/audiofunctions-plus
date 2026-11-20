@@ -18,8 +18,11 @@ function isModK(event) {
  * @param {object} [props.labels]
  * @param {(event: KeyboardEvent) => boolean} [props.shortcut] which combination
  *   toggles the palette. Pass a stable function.
+ * @param {(event: KeyboardEvent) => boolean} [props.helpShortcut] which key asks for
+ *   the active entry's `help` while the palette is open, F1 by default. Pass a stable
+ *   function, and rename `labels.helpKey` to match.
  */
-export function CommandPaletteProvider({ items, labels, shortcut = isModK, children }) {
+export function CommandPaletteProvider({ items, labels, shortcut = isModK, helpShortcut, children }) {
   const [open, setOpen] = useState(false)
   // Which submenu to start in, read once per opening.
   const [initialPath, setInitialPath] = useState([])
@@ -68,6 +71,7 @@ export function CommandPaletteProvider({ items, labels, shortcut = isModK, child
           items={items}
           labels={labels}
           initialPath={initialPath}
+          helpShortcut={helpShortcut}
         />
       </OpenContext.Provider>
     </ActionsContext.Provider>
