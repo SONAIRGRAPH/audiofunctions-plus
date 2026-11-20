@@ -328,9 +328,8 @@ export function useCommands() {
 
   /**
    * Soft-toggles mouse graph exploration (cursor follow + sonification on move).
-   * Ready for the command palette: add an item in usePaletteItems with
-   * `id: "toggle-mouse-exploration"` and `perform: run("toggle-mouse-exploration")`
-   * (optionally also an entry in hotkeys.js). Default remains enabled.
+   * In the command palette as "Freeze Mouse" / "Unfreeze Mouse" under Quick
+   * Options. Default remains enabled.
    */
   const toggleMouseExploration = () => {
     const next = !mouseExplorationEnabled;
@@ -344,7 +343,7 @@ export function useCommands() {
 
   return {
     'toggle-audio': toggleAudio,
-    // Soft toggle for mouse exploration — bind in usePaletteItems when exposing UI.
+    // Soft toggle for mouse exploration ("Freeze Mouse" in the palette).
     'toggle-mouse-exploration': toggleMouseExploration,
     'play-function': () => setPlayFunction(prev => ({ ...prev, source: "play", active: !prev.active })),
     // GraphView renders "play_space" differently from "play".

@@ -35,9 +35,8 @@ export const GraphContextProvider = ({ children }) => {
   const [stepSize, setStepSize] = useState(0.25); // Default value 0.5
   const [explorationMode, setExplorationMode] = useState("none"); // "none", "mouse", "keyboard_stepwise", "keyboard_smooth", "batch"
   // Soft toggle for mouse-driven graph exploration (cursor follow + sonification on move).
-  // Default true keeps the current behaviour. Toggle via the `toggle-mouse-exploration`
-  // command in useCommands — bind that id in usePaletteItems (and optionally hotkeys.js)
-  // when exposing it in the command palette; no palette entry is wired yet.
+  // Default true keeps the current behaviour. Toggled by the `toggle-mouse-exploration`
+  // command in useCommands, offered in the palette as "Freeze Mouse".
   const [mouseExplorationEnabled, setMouseExplorationEnabledState] = useState(true);
   const mouseExplorationEnabledRef = useRef(true);
   const setMouseExplorationEnabled = (next) => {

@@ -1008,7 +1008,7 @@ const GraphView = () => {
     // tracks the pointer, but exploration (cursor + sonification) only runs when
     // mouseExplorationEnabled is true. Read from the ref so toggling does not
     // rebuild the board. Controlled by `toggle-mouse-exploration` in useCommands
-    // (bind that id in usePaletteItems to expose it in the command palette).
+    // ("Freeze Mouse" in the command palette).
     const moveHandler = (event) => {
       if (board && board.jc) {
         // Only handle mouse movement if exploration is enabled and playback is idle

@@ -1,4 +1,4 @@
-import { Volume2, VolumeX, MapPin, Eye, Play, CirclePlay, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
+import { Volume2, VolumeX, MapPin, Eye, Play, CirclePlay, MousePointer, MousePointerBan, SquareActivity, ChartSpline, CircleGauge, List, ZoomIn, ZoomOut,
   SwatchBook, SlidersHorizontal, SlidersVertical, Plus, Edit, Palette, SunMoon, Sun, Moon,
   ChartArea, FileChartLine, FilePlus, Trash2, StepForward, StepBack, FastForward, Rewind, Import, Share2, FileUp, FileDown, ArrowRightFromLine, ArrowLeftFromLine, RotateCcw, Music, Ruler, HelpCircle, Info, Target, Move } from "lucide-react"
 import { useGraphContext } from "../../context/GraphContext";
@@ -71,7 +71,7 @@ const withHotkeys = (items) => items.map((item) => ({
  * changes that do not alter what the user sees.
  */
 export const usePaletteItems = () => {
-  const { functionDefinitions, graphSettings, focusChart, stepSize, PlayFunction } = useGraphContext();
+  const { functionDefinitions, graphSettings, focusChart, stepSize, PlayFunction, mouseExplorationEnabled } = useGraphContext();
   const { isAudioEnabled } = useMixer();
   const { openDialog } = useDialog();
   const { announce } = useAnnouncement();
@@ -359,7 +359,7 @@ export const usePaletteItems = () => {
   // Diagram Options
   {
     id: "diagram-options",
-    label: "Diagram Options",
+    label: "Exploration Options",
     keywords: toKeywords("diagram, graph, chart, plot, options, settings, configuration, view, display, visual"),
     icon: <FileChartLine />,
     children: [
@@ -370,6 +370,17 @@ export const usePaletteItems = () => {
         keywords: toKeywords("view, bounds, range, limits, window, axis, xmin, xmax, ymin, ymax, zoom, scale, viewport, boundaries, change, set, configure"),
         perform: () => openDialog("change-graph-bound"),
         icon: <ChartArea />,
+      },
+
+      {
+        // Like the sound toggle, the label names what the command will do
+        id: "toggle-mouse-exploration",
+        label: mouseExplorationEnabled ? "Freeze Mouse" : "Unfreeze Mouse",
+        keywords: toKeywords("mouse, pointer, freeze, unfreeze, lock, unlock, disable, enable, exploration, follow, cursor, hover, move, touchpad, trackpad, ignore"),
+        perform: run("toggle-mouse-exploration"),
+        icon: mouseExplorationEnabled
+          ? <MousePointerBan />
+          : <MousePointer />,
       },
 
       {
